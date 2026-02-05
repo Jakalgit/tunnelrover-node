@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { ShadowsocksModule } from './shadowsocks/shadowsocks.module';
+import * as path from 'path';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [ShadowsocksModule],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({
+      envFilePath: [path.join(__dirname, '../.env')],
+      isGlobal: true,
+    }),
+    ShadowsocksModule,
+  ],
 })
 export class AppModule {}

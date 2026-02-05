@@ -1,0 +1,31 @@
+version: "3.9"
+
+networks:
+  instance-network:
+    name: instance-network
+
+services:
+  shadowsocks:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ss-rust
+    networks:
+      - instance-network
+    ports:
+      - "8388-8488:8388-8488/tcp"
+      - "8388-8488:8388-8488/udp"
+    restart: unless-stopped
+
+  nest-app:
+    container_name: nest-js-app
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile.nestjs
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    networks:
+      - instance-network

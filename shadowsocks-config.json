@@ -1,0 +1,6 @@
+{
+  "manager_address": "0.0.0.0",
+  "manager_port": 6100,
+  "method": "chacha20-ietf-poly1305",
+  "servers": []
+}

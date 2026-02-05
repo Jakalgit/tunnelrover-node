@@ -12,6 +12,7 @@ export class ShadowsocksController {
   ) {
     const command = `add: {"server_port":${port},"password":"${password}"}`;
     await this.shadowsocksService.sendCommand(command);
+    console.log('add ok');
     return { ok: true, port };
   }
 
@@ -19,6 +20,7 @@ export class ShadowsocksController {
   async removeUser(@Query('port') port: number) {
     const command = `remove: {"server_port":${port}}`;
     await this.shadowsocksService.sendCommand(command);
+    console.log('remove ok');
     return { ok: true, port };
   }
 
@@ -26,6 +28,7 @@ export class ShadowsocksController {
   async listUsers() {
     const command = `list`;
     await this.shadowsocksService.sendCommand(command);
+    console.log('list ok');
     return { ok: true, list: [] };
   }
 }
