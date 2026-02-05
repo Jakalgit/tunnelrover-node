@@ -12,6 +12,6 @@ RUN curl -L -o /tmp/shadowsocks.tar.xz \
     && tar -xJf /tmp/shadowsocks.tar.xz -C /usr/local/bin \
     && rm /tmp/shadowsocks.tar.xz
 
-COPY config.json ./config.json
+COPY shadowsocks-config.json ./shadowsocks-config.json
 
-CMD ["ssmanager", "-c", "config.json"]
+CMD ["ssmanager", "-c", "shadowsocks-config.json"]
