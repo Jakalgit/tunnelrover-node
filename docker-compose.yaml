@@ -5,6 +5,19 @@ networks:
     name: instance-network
 
 services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt
+    networks:
+      - instance-network
+
   shadowsocks:
     build:
       context: .
