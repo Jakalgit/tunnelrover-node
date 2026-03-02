@@ -2,7 +2,15 @@
 
 set -e
 
-ROVER_NODE_HOST="web-node-1.tunnelrover.com"
+NODE_NAME="node-nl-1"
+ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
+
+sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*ss-rust/container_name: ss-rust-$NODE_NAME/g" docker-compose.yaml
+
+sed -i "s|http://nest-app:|http://nest-app-$NODE_NAME:|g" nginx.conf
+sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
 
 sudo apt update -y && sudo apt install certbot iptables-persistent -y
 
@@ -15,8 +23,8 @@ sudo certbot certonly \
   --no-eff-email
 
 mkdir -p ./nginx-certs
-cp /etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem ./nginx-certs/
-cp /etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem   ./nginx-certs/
+cp /etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem ./nginx-certs/fullchain.pem
+cp /etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem   ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
 
 sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT

@@ -10,6 +10,4 @@ COPY . .
 
 RUN npm run build && ls -la dist
 
-EXPOSE 5000
-
 CMD ["npm", "run", "start:prod"]

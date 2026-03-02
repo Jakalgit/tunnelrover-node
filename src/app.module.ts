@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ShadowsocksModule } from './shadowsocks/shadowsocks.module';
 import * as path from 'path';
 import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { ConfigModule } from '@nestjs/config';
       isGlobal: true,
     }),
     ShadowsocksModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
