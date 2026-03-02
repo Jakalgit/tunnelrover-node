@@ -2,11 +2,16 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import * as dgram from 'node:dgram';
 import { AddUsersDto } from '../dto/add-users.dto';
 import { RemoveUsersDto } from '../dto/remove-users.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ShadowsocksService {
-  private readonly host: string = 'ss-rust';
+  private readonly host: string;
   private readonly port: number = 6100;
+
+  constructor(private readonly configService: ConfigService) {
+    this.host = configService.get<string>('SHADOWSOCKS_HOST');
+  }
 
   async addUsers(dto: AddUsersDto) {
     const client = dgram.createSocket('udp4');

@@ -5,6 +5,8 @@ set -e
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 
+echo "SHADOWSOCKS_HOST=ss-rust-$NODE_NAME" >> .env
+
 sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
 sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-$NODE_NAME/g" docker-compose.yaml
 sed -i "s/container_name:[[:space:]]*ss-rust/container_name: ss-rust-$NODE_NAME/g" docker-compose.yaml
