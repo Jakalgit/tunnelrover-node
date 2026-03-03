@@ -5,6 +5,12 @@ set -e
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 
+SS_PORT_FROM=8388
+SS_PORT_TO=8588
+
+EXT_IFACE="eth0"
+DOCKER_SUBNET="172.17.0.0/16"
+
 echo "SHADOWSOCKS_HOST=ss-rust-$NODE_NAME" >> .env
 
 sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
@@ -29,22 +35,27 @@ cp /etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem ./nginx-certs/fullchain.
 cp /etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem   ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
 
-sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-sudo iptables -P INPUT DROP
-sudo iptables -P FORWARD DROP
-sudo iptables -P OUTPUT ACCEPT
-
-sudo iptables -A INPUT -i lo -j ACCEPT
-
-sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-
-sudo iptables -A FORWARD -p tcp --dport 8388:8488 -j ACCEPT
-sudo iptables -A FORWARD -p udp --dport 8388:8488 -j ACCEPT
-
-sudo netfilter-persistent save
+# sudo iptables -A INPUT -i lo -j ACCEPT
+# sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+#
+# sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+# sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+# sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+#
+# sudo iptables -A INPUT -p tcp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
+# sudo iptables -A INPUT -p udp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
+#
+# sudo iptables -A FORWARD -i docker0 -o $EXT_IFACE -j ACCEPT
+# sudo iptables -A FORWARD -i $EXT_IFACE -o docker0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+# sudo iptables -A FORWARD -i docker0 -o docker0 -j ACCEPT
+#
+# sudo iptables -t nat -A POSTROUTING -s $DOCKER_SUBNET -o $EXT_IFACE -j MASQUERADE
+#
+# sudo iptables -P INPUT DROP
+# sudo iptables -P FORWARD DROP
+# sudo iptables -P OUTPUT ACCEPT
+#
+# sudo netfilter-persistent save
 
 docker compose up -d
 

@@ -19,7 +19,12 @@ export class ShadowsocksService {
     try {
       await Promise.all(
         dto.credentials.map((el) => {
-          const command = `add: {"server_port":${el.port},"password":"${el.password}"}`;
+          const command = `add: {
+            "server_port": ${el.port},
+            "password": "${el.password}",
+            "plugin": "v2ray-plugin",
+            "plugin_opts": "server;tls;host=github.com"
+          }`;
 
           return new Promise<void>((resolve, reject) => {
             client.send(Buffer.from(command), this.port, this.host, (err) =>
