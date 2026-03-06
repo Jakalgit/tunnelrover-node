@@ -5,9 +5,6 @@ set -e
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 
-SS_PORT_FROM=8388
-SS_PORT_TO=8588
-
 EXT_IFACE="eth0"
 DOCKER_SUBNET="172.17.0.0/16"
 
@@ -15,7 +12,7 @@ echo "SHADOWSOCKS_HOST=ss-rust-$NODE_NAME" >> .env
 
 sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
 sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-$NODE_NAME/g" docker-compose.yaml
-sed -i "s/container_name:[[:space:]]*ss-rust/container_name: ss-rust-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*xray/container_name: xray-$NODE_NAME/g" docker-compose.yaml
 
 sed -i "s|http://nest-app:|http://nest-app-$NODE_NAME:|g" nginx.conf
 sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
