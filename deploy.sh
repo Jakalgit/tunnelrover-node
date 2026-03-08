@@ -18,7 +18,7 @@ sed -i "s|http://nest-app:|http://nest-app-$NODE_NAME:|g" nginx.conf
 sed -i "s|http://xray:|http://xray-$NODE_NAME:|g" nginx.conf
 sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
 
-sudo apt update -y && sudo apt install certbot iptables-persistent git -y
+sudo apt update -y && sudo apt install certbot iptables-persistent nano git -y
 
 sudo fallocate -l 8G /swapfile
 sudo chmod 600 /swapfile
