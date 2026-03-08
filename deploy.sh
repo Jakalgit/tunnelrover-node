@@ -18,7 +18,10 @@ sed -i "s|http://nest-app:|http://nest-app-$NODE_NAME:|g" nginx.conf
 sed -i "s|http://xray:|http://xray-$NODE_NAME:|g" nginx.conf
 sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
 
-sudo apt update -y && sudo apt install certbot iptables-persistent nano git -y
+curl -sSL https://get.docker.com/ | CHANNEL=stable sh
+sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
+sudo apt install docker-compose-plugin
+
 
 sudo fallocate -l 8G /swapfile
 sudo chmod 600 /swapfile
