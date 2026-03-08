@@ -19,6 +19,7 @@ sed -i "s|http://xray:|http://xray-$NODE_NAME:|g" nginx.conf
 sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
 
 curl -sSL https://get.docker.com/ | CHANNEL=stable sh
+systemctl enable --now docker
 sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
 sudo apt install docker-compose-plugin
 
