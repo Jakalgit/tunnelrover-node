@@ -23,6 +23,8 @@ services:
   xray:
     image: teddysun/xray
     container_name: xray
+    ports:
+      - "8443:8443"
     volumes:
       - ./xray-config.json:/etc/xray/config.json
     command: xray run -config /etc/xray/config.json
