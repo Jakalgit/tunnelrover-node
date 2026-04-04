@@ -30,6 +30,31 @@
       }
     },
     {
+      "tag": "vless-tcp",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "max.ru:443",
+          "xver": 0,
+          "serverNames": [
+            "max.ru"
+          ],
+          "privateKey": "SIo5O0zkxAFj0FrNvWTToVLyIfhpNnbhHYvaRIoBAVk",
+          "shortIds": [
+            "1cb91b1d48ed"
+          ]
+        }
+      }
+    },
+    {
       "listen": "0.0.0.0",
       "port": 10085,
       "protocol": "dokodemo-door",

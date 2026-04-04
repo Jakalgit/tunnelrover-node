@@ -28,7 +28,7 @@ services:
     command: xray run -config /etc/xray/config.json
     networks:
       - instance-network
-    restart: unless-stopped
+    restart: always
 
   nest-app:
     container_name: nest-app

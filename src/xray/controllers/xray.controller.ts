@@ -1,27 +1,41 @@
-import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { XrayService } from '../services/xray.service';
+import { AuthGuard } from '../../auth/guards/auth.guard';
+import { UpdateUsersDto } from '../dto/update-users.dto';
 
 @Controller('xray')
 export class XrayController {
   constructor(private readonly xrayService: XrayService) {}
 
+  @UseGuards(AuthGuard)
   @Post()
-  addUser(@Body() body: { uuids: string[] }) {
-    return this.xrayService.addUser(body.uuids);
+  addUser(@Body() dto: UpdateUsersDto) {
+    return this.xrayService.addUser(dto);
   }
 
+  @UseGuards(AuthGuard)
   @Delete()
-  removeUser(@Body() body: { uuids: string[] }) {
-    return this.xrayService.removeUser(body.uuids);
+  removeUser(@Body() dto: UpdateUsersDto) {
+    return this.xrayService.removeUser(dto);
   }
 
-  @Get('/list')
-  getUsers() {
-    return this.xrayService.getInboundUsers();
+  @UseGuards(AuthGuard)
+  @Get('/list/:tag')
+  getUsers(@Param('tag') tag: string) {
+    return this.xrayService.getInboundUsers(tag);
   }
 
-  @Get('/count')
-  getInboundUsersCount() {
-    return this.xrayService.getInboundUsersCount();
+  @UseGuards(AuthGuard)
+  @Get('/count/:tag')
+  getInboundUsersCount(@Param('tag') tag: string) {
+    return this.xrayService.getInboundUsersCount(tag);
   }
 }

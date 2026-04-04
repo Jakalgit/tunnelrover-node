@@ -13,7 +13,7 @@ export class AuthGuard implements CanActivate {
 
     const mode = this.configService.get<string | undefined>('TEST_MODE');
 
-    if (mode === '1') {
+    if (mode === 'true') {
       return true;
     }
 

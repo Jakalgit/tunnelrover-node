@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { XtlsApi } from '@remnawave/xtls-sdk';
+import { UpdateUsersDto } from '../dto/update-users.dto';
 
 @Injectable()
 export class XrayService {
@@ -14,31 +15,32 @@ export class XrayService {
     });
   }
 
-  async addUser(uuids: string[]) {
-    const promises = uuids.map((uuid) =>
+  async addUser(dto: UpdateUsersDto) {
+    const promises: Promise<any>[] = dto.uuids.map((uuid) =>
       this.api.handler.addVlessUser({
         level: 0,
         uuid,
-        tag: 'vless-ws',
+        tag: dto.tag,
         username: uuid,
-        flow: '',
+        flow: 'xtls-rprx-vision',
       }),
     );
+
     return await Promise.all(promises);
   }
 
-  async removeUser(uuids: string[]) {
-    const promises = uuids.map((el) =>
-      this.api.handler.removeUser('vless-ws', el),
+  async removeUser(dto: UpdateUsersDto) {
+    const promises = dto.uuids.map((el) =>
+      this.api.handler.removeUser(dto.tag, el),
     );
     return await Promise.all(promises);
   }
 
-  getInboundUsers() {
-    return this.api.handler.getInboundUsers('vless-ws');
+  getInboundUsers(tag: string) {
+    return this.api.handler.getInboundUsers(tag);
   }
 
-  getInboundUsersCount() {
-    return this.api.handler.getInboundUsersCount('vless-ws');
+  getInboundUsersCount(tag: string) {
+    return this.api.handler.getInboundUsersCount(tag);
   }
 }
