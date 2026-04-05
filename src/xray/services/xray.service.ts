@@ -91,6 +91,6 @@ export class XrayService {
       }
     }
 
-    return maxUsers;
+    return { count: maxUsers };
   }
 }
