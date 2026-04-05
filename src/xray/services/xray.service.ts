@@ -16,7 +16,7 @@ export class XrayService {
   }
 
   async addUser(uuids: string[]) {
-    const result: { uuid: string; isOk: boolean }[] = [];
+    const result: { uuid: string; isOk: boolean; message: string }[] = [];
 
     for (const u of uuids) {
       let isOk = true;
@@ -42,6 +42,7 @@ export class XrayService {
       result.push({
         uuid: u,
         isOk,
+        message: '',
       });
 
       if (!isOk) {
@@ -73,7 +74,10 @@ export class XrayService {
     }
 
     return {
-      uuids: [...users],
+      isOk: true,
+      data: {
+        users: [...users].map((uuid) => ({ username: uuid })),
+      },
     };
   }
 
@@ -91,6 +95,9 @@ export class XrayService {
       }
     }
 
-    return { count: maxUsers };
+    return {
+      isOk: true,
+      data: maxUsers,
+    };
   }
 }
