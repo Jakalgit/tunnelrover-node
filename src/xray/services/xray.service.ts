@@ -16,21 +16,40 @@ export class XrayService {
   }
 
   async addUser(uuids: string[]) {
-    const promises: Promise<any>[] = uuids
-      .map((uuid) => {
-        return this.TAGS.map((tag) =>
-          this.api.handler.addVlessUser({
-            level: 0,
-            uuid,
-            tag,
-            username: uuid,
-            flow: tag === 'vless-tcp' ? 'xtls-rprx-vision' : '',
-          }),
-        );
-      })
-      .flat();
+    const result: { uuid: string; isOk: boolean }[] = [];
 
-    return await Promise.all(promises);
+    for (const u of uuids) {
+      let isOk = true;
+      for (const tag of this.TAGS) {
+        try {
+          const response = await this.api.handler.addVlessUser({
+            level: 0,
+            uuid: u,
+            tag,
+            username: u,
+            flow: tag === 'vless-tcp' ? 'xtls-rprx-vision' : '',
+          });
+
+          if (!response.isOk) {
+            isOk = false;
+          }
+        } catch (error) {
+          isOk = false;
+          throw error;
+        }
+      }
+
+      result.push({
+        uuid: u,
+        isOk,
+      });
+
+      if (!isOk) {
+        await this.removeUser([u]);
+      }
+    }
+
+    return result;
   }
 
   async removeUser(uuids: string[]) {
@@ -39,7 +58,7 @@ export class XrayService {
         return this.TAGS.map((tag) => this.api.handler.removeUser(tag, el));
       })
       .flat();
-    return await Promise.all(promises);
+    await Promise.all(promises);
   }
 
   async getInboundUsers() {
@@ -54,7 +73,7 @@ export class XrayService {
     }
 
     return {
-      uuids: users.values(),
+      uuids: [...users],
     };
   }
 
