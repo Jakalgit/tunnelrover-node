@@ -14,18 +14,27 @@
 
   "inbounds": [
     {
-      "tag": "vless-ws",
-      "port": 10000,
+      "tag": "vless-tcp-2",
+      "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [],
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "ws",
-        "security": "none",
-        "wsSettings": {
-          "path": "/ws"
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "yandex.ru:443",
+          "xver": 0,
+          "serverNames": [
+            "yandex.ru"
+          ],
+          "privateKey": "",
+          "shortIds": [
+            "1cb91b1d48ed"
+          ]
         }
       }
     },
