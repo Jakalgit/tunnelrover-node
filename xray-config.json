@@ -14,7 +14,7 @@
 
   "inbounds": [
     {
-      "tag": "vless-tcp-2",
+      "tag": "vless-tcp",
       "port": 443,
       "protocol": "vless",
       "settings": {
@@ -26,35 +26,10 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "yandex.ru:443",
+          "dest": "www.gosuslugi.ru:443",
           "xver": 0,
           "serverNames": [
-            "yandex.ru"
-          ],
-          "privateKey": "",
-          "shortIds": [
-            "1cb91b1d48ed"
-          ]
-        }
-      }
-    },
-    {
-      "tag": "vless-tcp",
-      "port": 8443,
-      "protocol": "vless",
-      "settings": {
-        "clients": [],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          "dest": "max.ru:443",
-          "xver": 0,
-          "serverNames": [
-            "max.ru"
+            "www.gosuslugi.ru"
           ],
           "privateKey": "",
           "shortIds": [

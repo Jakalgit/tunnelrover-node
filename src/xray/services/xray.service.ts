@@ -5,7 +5,7 @@ import { XtlsApi } from '@remnawave/xtls-sdk';
 @Injectable()
 export class XrayService {
   private api!: XtlsApi;
-  private readonly TAGS = ['vless-tcp', 'vless-ws'];
+  private readonly TAGS = ['vless-tcp'];
 
   constructor(private readonly configService: ConfigService) {
     const XRAY_HOST = configService.get<string>('XRAY_HOST');
@@ -27,7 +27,7 @@ export class XrayService {
             uuid: u,
             tag,
             username: u,
-            flow: tag === 'vless-tcp' ? 'xtls-rprx-vision' : '',
+            flow: 'xtls-rprx-vision',
           });
 
           if (!response.isOk) {
