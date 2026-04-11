@@ -7,11 +7,28 @@ ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 
 EXT_IFACE="eth0"
 DOCKER_SUBNET="172.17.0.0/16"
+SWAP_SIZE="3G"
 
-KEYS=$(xray x25519)
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --privkey)
+      XRAY_PRIVATE_KEY="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
 
-XRAY_PRIVATE_KEY=$(echo "$KEYS" | grep 'PrivateKey' | awk '{print $2}')
-XRAY_PUBLIC_KEY=$(echo "$KEYS" | grep 'Password (PublicKey)' | awk '{print $3}')
+XRAY_PUBLIC_KEY="old key works"
+
+if [[ -z "$XRAY_PRIVATE_KEY" ]]; then
+  KEYS=$(xray x25519)
+  XRAY_PRIVATE_KEY=$(echo "$KEYS" | grep 'PrivateKey' | awk '{print $2}')
+  XRAY_PUBLIC_KEY=$(echo "$KEYS" | grep 'Password (PublicKey)' | awk '{print $3}')
+fi
 
 echo "XRAY_HOST=xray-$NODE_NAME" >> .env
 
@@ -31,7 +48,7 @@ sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
 sudo apt install docker-compose-plugin
 
 if [ ! -f "/swapfile" ]; then
-  sudo fallocate -l 8G /swapfile
+  sudo fallocate -l $SWAP_SIZE /swapfile
   sudo chmod 600 /swapfile
   sudo mkswap /swapfile
   sudo swapon /swapfile
