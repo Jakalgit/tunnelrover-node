@@ -26,10 +26,10 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "www.gosuslugi.ru:443",
+          "dest": "vk.com:443",
           "xver": 0,
           "serverNames": [
-            "www.gosuslugi.ru"
+            "vk.com"
           ],
           "privateKey": "",
           "shortIds": [
