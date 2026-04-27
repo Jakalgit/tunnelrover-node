@@ -2,6 +2,9 @@
 
 set -e
 
+sudo apt update && apt install -y unzip
+bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 

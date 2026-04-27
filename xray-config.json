@@ -15,6 +15,7 @@
   "inbounds": [
     {
       "tag": "vless-tcp",
+      "listen": "0.0.0.0",
       "port": 443,
       "protocol": "vless",
       "settings": {
@@ -26,16 +27,21 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "vk.com:443",
+          "dest": "ads.x5.ru:443",
           "xver": 0,
           "serverNames": [
-            "vk.com"
+            "ads.x5.ru"
           ],
           "privateKey": "",
           "shortIds": [
             "1cb91b1d48ed"
           ]
-        }
+        },
+        "tcpSettings": {}
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
       }
     },
     {
@@ -51,20 +57,26 @@
 
   "outbounds": [
     {
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "direct"
     },
     {
       "protocol": "blackhole",
-      "tag": "blocked"
+      "tag": "block"
     }
   ],
 
   "routing": {
+    "domainStrategy": "IPIfNonMatch",
     "rules": [
       {
         "type": "field",
         "inboundTag": ["api-in"],
         "outboundTag": "api"
+      },
+      {
+        "ip": ["geoip:private"],
+        "outboundTag": "block"
       }
     ]
   }
