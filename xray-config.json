@@ -15,7 +15,7 @@
   "inbounds": [
     {
       "tag": "vless-ws",
-      "port": 10000,
+      "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [],
