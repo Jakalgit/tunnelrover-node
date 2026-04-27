@@ -5,8 +5,9 @@ set -e
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
 
-EXT_IFACE="eth0"
-DOCKER_SUBNET="172.17.0.0/16"
+# EXT_IFACE="eth0"
+# DOCKER_SUBNET="172.17.0.0/16"
+SWAP_SIZE="3G"
 
 echo "XRAY_HOST=xray-$NODE_NAME" >> .env
 
@@ -24,11 +25,13 @@ sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
 sudo apt install docker-compose-plugin
 
 
-sudo fallocate -l 8G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo "/swapfile none swap sw 0 0" >> /etc/fstab
+if [ ! -f "/swapfile" ]; then
+  sudo fallocate -l $SWAP_SIZE /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo "/swapfile none swap sw 0 0" >> /etc/fstab
+fi
 
 sudo certbot certonly \
   --standalone \
