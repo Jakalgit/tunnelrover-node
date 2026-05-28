@@ -5,6 +5,7 @@ import { XtlsApi } from '@remnawave/xtls-sdk';
 @Injectable()
 export class XrayService {
   private api!: XtlsApi;
+  private readonly TAGS = ['vless-ws'];
 
   constructor(private readonly configService: ConfigService) {
     const XRAY_HOST = configService.get<string>('XRAY_HOST');
@@ -15,30 +16,86 @@ export class XrayService {
   }
 
   async addUser(uuids: string[]) {
-    const promises = uuids.map((uuid) =>
-      this.api.handler.addVlessUser({
-        level: 0,
-        uuid,
-        tag: 'vless-ws',
-        username: uuid,
-        flow: '',
-      }),
-    );
-    return await Promise.all(promises);
+    const result: { uuid: string; isOk: boolean; message: string }[] = [];
+
+    for (const u of uuids) {
+      let isOk = true;
+      for (const tag of this.TAGS) {
+        try {
+          const response = await this.api.handler.addVlessUser({
+            level: 0,
+            uuid: u,
+            tag,
+            username: u,
+            flow: '',
+          });
+
+          isOk = !!response.isOk;
+        } catch (error: unknown) {
+          isOk = false;
+          throw error;
+        }
+      }
+
+      result.push({
+        uuid: u,
+        isOk,
+        message: '',
+      });
+
+      if (!isOk) {
+        await this.removeUser([u]);
+      }
+    }
+
+    return result;
   }
 
   async removeUser(uuids: string[]) {
-    const promises = uuids.map((el) =>
-      this.api.handler.removeUser('vless-ws', el),
-    );
-    return await Promise.all(promises);
+    const promises = uuids
+      .map((el) => {
+        return this.TAGS.map((tag) => this.api.handler.removeUser(tag, el));
+      })
+      .flat();
+    await Promise.all(promises);
   }
 
-  getInboundUsers() {
-    return this.api.handler.getInboundUsers('vless-ws');
+  async getInboundUsers() {
+    const users: Set<string> = new Set();
+    for (const tag of this.TAGS) {
+      const response = await this.api.handler.getInboundUsers(tag);
+      if (response.isOk) {
+        response.data.users.forEach((user) => {
+          users.add(user.username);
+        });
+      }
+    }
+
+    return {
+      isOk: true,
+      data: {
+        users: [...users].map((uuid) => ({ username: uuid })),
+      },
+    };
   }
 
-  getInboundUsersCount() {
-    return this.api.handler.getInboundUsersCount('vless-ws');
+  async getInboundUsersCount() {
+    let maxUsers = 1000000000;
+
+    for (const tag of this.TAGS) {
+      const response = await this.api.handler.getInboundUsersCount(tag);
+
+      if (response.isOk) {
+        if (maxUsers === 1000000000) {
+          maxUsers = 0;
+        }
+        maxUsers = Math.max(maxUsers, response.data);
+      }
+    }
+
+    return {
+      isOk: true,
+      data: maxUsers,
+    };
   }
 }

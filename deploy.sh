@@ -24,7 +24,6 @@ systemctl enable --now docker
 sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
 sudo apt install docker-compose-plugin
 
-
 if [ ! -f "/swapfile" ]; then
   sudo fallocate -l $SWAP_SIZE /swapfile
   sudo chmod 600 /swapfile
@@ -45,28 +44,6 @@ mkdir -p ./nginx-certs
 cp /etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem ./nginx-certs/fullchain.pem
 cp /etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem   ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
-
-# sudo iptables -A INPUT -i lo -j ACCEPT
-# sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-#
-# sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-# sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-# sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-#
-# sudo iptables -A INPUT -p tcp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
-# sudo iptables -A INPUT -p udp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
-#
-# sudo iptables -A FORWARD -i docker0 -o $EXT_IFACE -j ACCEPT
-# sudo iptables -A FORWARD -i $EXT_IFACE -o docker0 -m state --state ESTABLISHED,RELATED -j ACCEPT
-# sudo iptables -A FORWARD -i docker0 -o docker0 -j ACCEPT
-#
-# sudo iptables -t nat -A POSTROUTING -s $DOCKER_SUBNET -o $EXT_IFACE -j MASQUERADE
-#
-# sudo iptables -P INPUT DROP
-# sudo iptables -P FORWARD DROP
-# sudo iptables -P OUTPUT ACCEPT
-#
-# sudo netfilter-persistent save
 
 docker compose up -d
 
