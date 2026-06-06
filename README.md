@@ -16,7 +16,7 @@ One VPS runs **one nginx** and **N relay stacks**. Each stack is a pair `xray-{n
 ## Deploy
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
-2. For each node set `name`, `domain`, and `exit` (REALITY exit from `tcp-node`).
+2. For each node set `name`, `domain`, `nodeToken` (API secret for nest-app; same value as `accessToken` in Tunnel Rover DB), and `exit` (REALITY exit from `tcp-node`).
 3. On VPS (from repo root, where `deploy.sh` lives):
 
 ```bash
@@ -24,24 +24,17 @@ cd ~/node   # or your clone path
 ls -la deploy.sh deploy/nodes.json   # must exist
 
 chmod +x deploy.sh
-export NODE_TOKEN='your-secret-token'
-sudo -E bash deploy.sh
+sudo bash deploy.sh
 ```
 
-Alternative (one line):
-
-```bash
-sudo env NODE_TOKEN='your-secret-token' bash deploy.sh
-```
-
-**Do not** run `sudo bash NODE_TOKEN=... ./deploy.sh` — that is invalid syntax.
+`nodeToken` is read from `deploy/nodes.json` per node. Optional fallback for all nodes: `sudo env NODE_TOKEN='shared-secret' bash deploy.sh` (only if `nodeToken` is omitted in JSON).
 
 If you see `./deploy.sh: command not found`, usually CRLF line endings from Windows:
 
 ```bash
 sed -i 's/\r$//' deploy.sh
 # or: apt install dos2unix && dos2unix deploy.sh
-sudo env NODE_TOKEN='...' bash deploy.sh
+sudo bash deploy.sh
 ```
 
 ### `nginx.conf: not a directory` / mount error
@@ -54,7 +47,7 @@ docker compose -f docker-compose.yaml -f generated/docker-compose.nodes.yaml dow
 rm -rf nginx.conf index.html   # only if: file nginx.conf shows "directory"
 git checkout -- nginx.conf index.html   # or re-upload from your machine
 file nginx.conf   # must say "ASCII text", not "directory"
-sudo env NODE_TOKEN='...' bash deploy.sh
+sudo bash deploy.sh
 ```
 
 Re-deploy configs only (Docker already installed):
@@ -69,7 +62,7 @@ SKIP_BOOTSTRAP=1 SKIP_CERTBOT=1 sudo ./deploy.sh
 |------|---------|
 | `generated/nginx/nodes/*.conf` | nginx `server` blocks from `templates/node-single.conf.template` |
 | `generated/nodes/*/xray-config.json` | relay xray with exit placeholders filled |
-| `generated/nodes/*/.env` | `XRAY_HOST=xray-{name}` for nest-app |
+| `generated/nodes/*/.env` | `XRAY_HOST`, `NODE_TOKEN` (from `nodeToken` in nodes.json) |
 | `generated/docker-compose.nodes.yaml` | xray + nest services per node |
 
 ## Compose
@@ -78,8 +71,16 @@ SKIP_BOOTSTRAP=1 SKIP_CERTBOT=1 sudo ./deploy.sh
 docker compose -f docker-compose.yaml -f generated/docker-compose.nodes.yaml up -d
 ```
 
-- `docker-compose.yaml` — shared **nginx** + **promtail**
-- `generated/docker-compose.nodes.yaml` — per-node **xray** + **nest-app**
+Always use **both** compose files. Do not run `docker network create` manually.
+
+## Tunnel Rover DB (per middle node)
+
+| Field | Value |
+|-------|--------|
+| `connection` | `ws` |
+| `host` | `domain` from nodes.json |
+| `tcpPort` | `443` |
+| `pathServerName` | `/ws` |
 
 ## vs single-node / tcp-node
 

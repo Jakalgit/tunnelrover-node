@@ -1,7 +1,7 @@
 #!/bin/bash
 # Middle-node deploy: one shared nginx + N relay stacks (xray + nest-app per domain).
 #
-# 1. Copy deploy/nodes.example.json → deploy/nodes.json and fill exit credentials.
+# 1. Copy deploy/nodes.example.json → deploy/nodes.json (nodeToken + exit per node).
 # 2. Run on VPS: sudo ./deploy.sh
 
 set -euo pipefail
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 NODES_FILE="${NODES_FILE:-deploy/nodes.json}"
-SWAP_SIZE="${SWAP_SIZE:-3G}"
+SWAP_SIZE="${SWAP_SIZE:-2G}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-info@tunnelrover.com}"
 
 TEMPLATE_NGINX="templates/node-single.conf.template"
@@ -52,9 +52,19 @@ for i in $(seq 0 $((NODE_COUNT - 1))); do
   EXIT_SNI="$(jq -r ".[$i].exit.sni" "$NODES_FILE")"
   EXIT_PUBLIC_KEY="$(jq -r ".[$i].exit.publicKey" "$NODES_FILE")"
   EXIT_SHORT_ID="$(jq -r ".[$i].exit.shortId" "$NODES_FILE")"
+  NODE_TOKEN_VALUE="$(jq -r ".[$i].nodeToken // empty" "$NODES_FILE")"
 
   if [[ -z "$NAME" || "$NAME" == "null" || -z "$DOMAIN" || "$DOMAIN" == "null" ]]; then
     echo "Node #$i: name and domain are required"
+    exit 1
+  fi
+
+  if [[ -z "$NODE_TOKEN_VALUE" || "$NODE_TOKEN_VALUE" == "null" ]]; then
+    NODE_TOKEN_VALUE="${NODE_TOKEN:-}"
+  fi
+
+  if [[ -z "$NODE_TOKEN_VALUE" ]]; then
+    echo "Node #$i ($NAME): nodeToken is required in $NODES_FILE"
     exit 1
   fi
 
@@ -78,7 +88,7 @@ for i in $(seq 0 $((NODE_COUNT - 1))); do
   cat > "$NODE_DIR/.env" <<EOF
 XRAY_HOST=xray-$NAME
 XRAY_PORT=10085
-NODE_TOKEN=${NODE_TOKEN:-change-me}
+NODE_TOKEN=${NODE_TOKEN_VALUE}
 TEST_MODE=false
 EOF
 

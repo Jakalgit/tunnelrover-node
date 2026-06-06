@@ -2,6 +2,7 @@
   {
     "name": "node-us-1",
     "domain": "node-us-1.tunnelrover.com",
+    "nodeToken": "REPLACE_NODE_TOKEN_US_1",
     "exit": {
       "address": "5.8.19.127",
       "id": "00000000-0000-0000-0000-000000000000",
@@ -13,6 +14,7 @@
   {
     "name": "node-hk-1",
     "domain": "node-hk-1.tunnelrover.com",
+    "nodeToken": "REPLACE_NODE_TOKEN_HK_1",
     "exit": {
       "address": "5.8.19.127",
       "id": "00000000-0000-0000-0000-000000000000",
