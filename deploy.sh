@@ -166,6 +166,7 @@ if [[ "${SKIP_CERTBOT:-0}" != "1" ]]; then
   echo "==> Obtaining certificate for: ${CERT_DOMAINS[*]}"
   certbot certonly \
     --standalone \
+    --expand \
     "${DOMAIN_ARGS[@]}" \
     --non-interactive \
     --agree-tos \
@@ -173,9 +174,21 @@ if [[ "${SKIP_CERTBOT:-0}" != "1" ]]; then
     --no-eff-email
 fi
 
+# After --expand, cert files may stay under the original lineage name (not always PRIMARY_DOMAIN).
+CERT_LIVE_NAME=""
+for d in "${CERT_DOMAINS[@]}"; do
+  if [[ -f "/etc/letsencrypt/live/$d/fullchain.pem" ]]; then
+    CERT_LIVE_NAME="$d"
+    break
+  fi
+done
+if [[ -z "$CERT_LIVE_NAME" ]]; then
+  CERT_LIVE_NAME="$PRIMARY_DOMAIN"
+fi
+
 mkdir -p ./nginx-certs
-cp "/etc/letsencrypt/live/$PRIMARY_DOMAIN/fullchain.pem" ./nginx-certs/fullchain.pem
-cp "/etc/letsencrypt/live/$PRIMARY_DOMAIN/privkey.pem" ./nginx-certs/privkey.pem
+cp "/etc/letsencrypt/live/$CERT_LIVE_NAME/fullchain.pem" ./nginx-certs/fullchain.pem
+cp "/etc/letsencrypt/live/$CERT_LIVE_NAME/privkey.pem" ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
 
 assert_mount_file() {
