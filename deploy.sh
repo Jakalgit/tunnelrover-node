@@ -168,6 +168,37 @@ cp "/etc/letsencrypt/live/$PRIMARY_DOMAIN/fullchain.pem" ./nginx-certs/fullchain
 cp "/etc/letsencrypt/live/$PRIMARY_DOMAIN/privkey.pem" ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
 
+assert_mount_file() {
+  local path="$1"
+  if [[ -d "$path" ]]; then
+    echo ""
+    echo "ERROR: '$path' is a directory, but Docker needs a file."
+    echo "  This usually happens after a failed start when the file was missing."
+    echo "  Fix:  rm -rf '$path'"
+    echo "  Then copy the file from the repo (git checkout -- '$path' or re-upload)."
+    exit 1
+  fi
+  if [[ ! -f "$path" ]]; then
+    echo "ERROR: required file missing: $path"
+    exit 1
+  fi
+}
+
+echo "==> Preflight mount paths..."
+assert_mount_file nginx.conf
+assert_mount_file index.html
+assert_mount_file promtail-config.yaml
+
+if [[ ! -d "$GENERATED_NGINX_DIR" ]] || ! compgen -G "$GENERATED_NGINX_DIR/*.conf" >/dev/null; then
+  echo "ERROR: no nginx node configs in $GENERATED_NGINX_DIR"
+  exit 1
+fi
+
+if [[ ! -f "$COMPOSE_NODES_FILE" ]]; then
+  echo "ERROR: missing $COMPOSE_NODES_FILE"
+  exit 1
+fi
+
 echo "==> Starting stack..."
 docker compose -f docker-compose.yaml -f "$COMPOSE_NODES_FILE" up -d --build
 

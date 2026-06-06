@@ -17,8 +17,45 @@ One VPS runs **one nginx** and **N relay stacks**. Each stack is a pair `xray-{n
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
 2. For each node set `name`, `domain`, and `exit` (REALITY exit from `tcp-node`).
-3. Set `NODE_TOKEN` env before deploy (used in generated `.env` per node).
-4. On VPS: `sudo NODE_TOKEN=secret ./deploy.sh`
+3. On VPS (from repo root, where `deploy.sh` lives):
+
+```bash
+cd ~/node   # or your clone path
+ls -la deploy.sh deploy/nodes.json   # must exist
+
+chmod +x deploy.sh
+export NODE_TOKEN='your-secret-token'
+sudo -E bash deploy.sh
+```
+
+Alternative (one line):
+
+```bash
+sudo env NODE_TOKEN='your-secret-token' bash deploy.sh
+```
+
+**Do not** run `sudo bash NODE_TOKEN=... ./deploy.sh` — that is invalid syntax.
+
+If you see `./deploy.sh: command not found`, usually CRLF line endings from Windows:
+
+```bash
+sed -i 's/\r$//' deploy.sh
+# or: apt install dos2unix && dos2unix deploy.sh
+sudo env NODE_TOKEN='...' bash deploy.sh
+```
+
+### `nginx.conf: not a directory` / mount error
+
+If `nginx.conf` (or `index.html`) was missing on first `docker compose up`, Docker may have created a **directory** with that name. Remove it and restore the **file** from the repo:
+
+```bash
+cd ~/node
+docker compose -f docker-compose.yaml -f generated/docker-compose.nodes.yaml down 2>/dev/null || true
+rm -rf nginx.conf index.html   # only if: file nginx.conf shows "directory"
+git checkout -- nginx.conf index.html   # or re-upload from your machine
+file nginx.conf   # must say "ASCII text", not "directory"
+sudo env NODE_TOKEN='...' bash deploy.sh
+```
 
 Re-deploy configs only (Docker already installed):
 
