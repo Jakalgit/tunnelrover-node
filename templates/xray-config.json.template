@@ -2,7 +2,6 @@
   "log": {
     "loglevel": "warning"
   },
-
   "api": {
     "services": [
       "HandlerService",
@@ -11,7 +10,6 @@
     ],
     "tag": "api"
   },
-
   "inbounds": [
     {
       "tag": "vless-ws",
@@ -39,8 +37,32 @@
       }
     }
   ],
-
   "outbounds": [
+    {
+      "protocol": "vless",
+      "tag": "to-exit",
+      "settings": {
+        "vnext": [{
+          "address": "{{EXIT_ADDRESS}}",
+          "port": 443,
+          "users": [{
+            "id": "{{EXIT_ID}}",
+            "encryption": "none",
+            "flow": "xtls-rprx-vision"
+          }]
+        }]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "{{EXIT_SNI}}",
+          "publicKey": "{{EXIT_PUBLIC_KEY}}",
+          "shortId": "{{EXIT_SHORT_ID}}",
+          "fingerprint": "chrome"
+        }
+      }
+    },
     {
       "protocol": "freedom"
     },
@@ -49,9 +71,14 @@
       "tag": "blocked"
     }
   ],
-
   "routing": {
+    "domainStrategy": "AsIs",
     "rules": [
+      {
+        "type": "field",
+        "inboundTag": ["vless-ws"],
+        "outboundTag": "to-exit"
+      },
       {
         "type": "field",
         "inboundTag": ["api-in"],

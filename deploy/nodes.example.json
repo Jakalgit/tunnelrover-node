@@ -1,0 +1,24 @@
+[
+  {
+    "name": "node-us-1",
+    "domain": "node-us-1.tunnelrover.com",
+    "exit": {
+      "address": "5.8.19.127",
+      "id": "00000000-0000-0000-0000-000000000000",
+      "sni": "ads.x5.ru",
+      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
+      "shortId": "0123456789abcdef"
+    }
+  },
+  {
+    "name": "node-hk-1",
+    "domain": "node-hk-1.tunnelrover.com",
+    "exit": {
+      "address": "5.8.19.127",
+      "id": "00000000-0000-0000-0000-000000000000",
+      "sni": "ads.x5.ru",
+      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
+      "shortId": "0123456789abcdef"
+    }
+  }
+]

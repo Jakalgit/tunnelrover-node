@@ -15,29 +15,9 @@ services:
       - "8080:8080"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./generated/nginx/nodes:/etc/nginx/conf.d/nodes:ro
       - ./nginx-certs:/etc/nginx/certs:ro
-      - ./index.html:/etc/nginx/html/index.html
-    depends_on:
-      - xray
-    networks:
-      - instance-network
-
-  xray:
-    image: teddysun/xray
-    container_name: xray
-    volumes:
-      - ./xray-config.json:/etc/xray/config.json
-    command: xray run -config /etc/xray/config.json
-    networks:
-      - instance-network
-    restart: unless-stopped
-
-  nest-app:
-    container_name: nest-app
-    restart: always
-    build:
-      context: .
-      dockerfile: Dockerfile.nestjs
+      - ./index.html:/etc/nginx/html/index.html:ro
     networks:
       - instance-network
 

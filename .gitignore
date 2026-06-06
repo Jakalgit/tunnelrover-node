@@ -42,6 +42,11 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
+# middle-node generated deploy artifacts
+/generated
+/deploy/nodes.json
+/nginx-certs
+
 # temp directory
 .temp
 .tmp
