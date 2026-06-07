@@ -16,21 +16,33 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx-certs:/etc/nginx/certs:ro
     depends_on:
-      - xray
+      - nest-app
     networks:
       - instance-network
 
-  xray:
-    image: teddysun/xray
-    container_name: xray
-    ports:
-      - "443:443"
-    volumes:
-      - ./xray-config.json:/etc/xray/config.json
-    command: xray run -config /etc/xray/config.json
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    command: redis-server --save "" --appendonly no
     networks:
       - instance-network
+
+  hysteria:
+    image: tobyxdd/hysteria:latest
+    container_name: hysteria
     restart: always
+    ports:
+      - "443:443/udp"
+      - "443:443/tcp"
+    volumes:
+      - ./hysteria-config.yaml:/etc/hysteria/config.yaml:ro
+      - ./nginx-certs:/etc/hysteria/certs:ro
+    command: server -c /etc/hysteria/config.yaml
+    depends_on:
+      - nest-app
+    networks:
+      - instance-network
 
   nest-app:
     container_name: nest-app
@@ -38,6 +50,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nestjs
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      HYSTERIA_HOST: hysteria
+      HYSTERIA_TRAFFIC_PORT: "9999"
+    depends_on:
+      - redis
     networks:
       - instance-network
 

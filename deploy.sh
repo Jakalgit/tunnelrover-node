@@ -2,20 +2,19 @@
 
 set -e
 
-sudo apt update && apt install -y unzip
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-
-NODE_NAME="node-nl-1"
-ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
-
-EXT_IFACE="eth0"
-DOCKER_SUBNET="172.17.0.0/16"
-SWAP_SIZE="3G"
+NODE_NAME="${NODE_NAME:-node-nl-1}"
+ROVER_NODE_HOST="${ROVER_NODE_HOST:-$NODE_NAME.tunnelrover.com}"
+SWAP_SIZE="${SWAP_SIZE:-3G}"
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --privkey)
-      XRAY_PRIVATE_KEY="$2"
+    --node-name)
+      NODE_NAME="$2"
+      ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
+      shift 2
+      ;;
+    --host)
+      ROVER_NODE_HOST="$2"
       shift 2
       ;;
     *)
@@ -25,40 +24,46 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-XRAY_PUBLIC_KEY="old key works"
-
-if [[ -z "$XRAY_PRIVATE_KEY" ]]; then
-  KEYS=$(xray x25519)
-  XRAY_PRIVATE_KEY=$(echo "$KEYS" | grep 'PrivateKey' | awk '{print $2}')
-  XRAY_PUBLIC_KEY=$(echo "$KEYS" | grep 'Password (PublicKey)' | awk '{print $3}')
+if [[ -z "${NODE_TOKEN:-}" ]]; then
+  echo "Set NODE_TOKEN before deploy (same as accessToken in Tunnel Rover DB)."
+  exit 1
 fi
 
-echo "XRAY_HOST=xray-$NODE_NAME" >> .env
-
-sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
-sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-$NODE_NAME/g" docker-compose.yaml
-sed -i "s/container_name:[[:space:]]*xray/container_name: xray-$NODE_NAME/g" docker-compose.yaml
-
-sed -i "s|http://nest-app:|http://nest-app-$NODE_NAME:|g" nginx.conf
-sed -i "s|http://xray:|http://xray-$NODE_NAME:|g" nginx.conf
-sed -i "s|server-node.tunnelrover.com;|$ROVER_NODE_HOST;|g" nginx.conf
-
-sed -i "s|\"privateKey\": \"\"|\"privateKey\": \"$XRAY_PRIVATE_KEY\"|" xray-config.json
+TRAFFIC_STATS_SECRET="${TRAFFIC_STATS_SECRET:-$(openssl rand -hex 32)}"
 
 curl -sSL https://get.docker.com/ | CHANNEL=stable sh
 systemctl enable --now docker
-sudo apt update -y && sudo apt install certbot iptables-persistent nano -y
-sudo apt install docker-compose-plugin
+apt-get update -y && apt-get install -y certbot iptables-persistent nano docker-compose-plugin
 
-if [ ! -f "/swapfile" ]; then
-  sudo fallocate -l $SWAP_SIZE /swapfile
-  sudo chmod 600 /swapfile
-  sudo mkswap /swapfile
-  sudo swapon /swapfile
+if [[ ! -f "/swapfile" ]]; then
+  fallocate -l "$SWAP_SIZE" /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
   echo "/swapfile none swap sw 0 0" >> /etc/fstab
 fi
 
-sudo certbot certonly \
+sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*hysteria/container_name: hysteria-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*redis/container_name: redis-$NODE_NAME/g" docker-compose.yaml
+sed -i "s/container_name:[[:space:]]*promtail/container_name: promtail-$NODE_NAME/g" docker-compose.yaml
+
+sed -i "s|server_name server-node.tunnelrover.com;|server_name $ROVER_NODE_HOST;|g" nginx.conf
+
+sed -i "s|{{TRAFFIC_STATS_SECRET}}|$TRAFFIC_STATS_SECRET|g" hysteria-config.yaml
+
+cat > .env <<EOF
+NODE_TOKEN=$NODE_TOKEN
+HYSTERIA_TRAFFIC_SECRET=$TRAFFIC_STATS_SECRET
+REDIS_HOST=redis
+REDIS_PORT=6379
+HYSTERIA_HOST=hysteria
+HYSTERIA_TRAFFIC_PORT=9999
+TEST_MODE=false
+EOF
+
+certbot certonly \
   --standalone \
   -d "$ROVER_NODE_HOST" \
   --non-interactive \
@@ -67,31 +72,13 @@ sudo certbot certonly \
   --no-eff-email
 
 mkdir -p ./nginx-certs
-cp /etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem ./nginx-certs/fullchain.pem
-cp /etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem   ./nginx-certs/privkey.pem
+cp "/etc/letsencrypt/live/$ROVER_NODE_HOST/fullchain.pem" ./nginx-certs/fullchain.pem
+cp "/etc/letsencrypt/live/$ROVER_NODE_HOST/privkey.pem" ./nginx-certs/privkey.pem
 chmod 644 ./nginx-certs/*.pem
 
-# sudo iptables -A INPUT -i lo -j ACCEPT
-# sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-#
-# sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-# sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-# sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-#
-# sudo iptables -A INPUT -p tcp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
-# sudo iptables -A INPUT -p udp --dport $SS_PORT_FROM:$SS_PORT_TO -j ACCEPT
-#
-# sudo iptables -A FORWARD -i docker0 -o $EXT_IFACE -j ACCEPT
-# sudo iptables -A FORWARD -i $EXT_IFACE -o docker0 -m state --state ESTABLISHED,RELATED -j ACCEPT
-# sudo iptables -A FORWARD -i docker0 -o docker0 -j ACCEPT
-#
-# sudo iptables -t nat -A POSTROUTING -s $DOCKER_SUBNET -o $EXT_IFACE -j MASQUERADE
-#
-# sudo iptables -P INPUT DROP
-# sudo iptables -P FORWARD DROP
-# sudo iptables -P OUTPUT ACCEPT
-#
-# sudo netfilter-persistent save
+docker compose up -d --build
 
-docker compose up -d
-echo "XRAY Public key: $XRAY_PUBLIC_KEY"
+echo "Done."
+echo "  Hysteria: $ROVER_NODE_HOST:443 (UDP+TCP)"
+echo "  Nest API: https://$ROVER_NODE_HOST:8080/xray"
+echo "  Client auth: hysteria2://<USER_UUID>@$ROVER_NODE_HOST:443?sni=$ROVER_NODE_HOST"

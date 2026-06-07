@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
-import { XrayService } from '../services/xray.service';
+import { UserService } from '../services/user.service';
 import { AuthGuard } from '../../auth/guards/auth.guard';
 
-@Controller('xray')
-export class XrayController {
-  constructor(private readonly xrayService: XrayService) {}
+@Controller('user')
+export class UserController {
+  constructor(private readonly xrayService: UserService) {}
 
   @UseGuards(AuthGuard)
   @Post()
