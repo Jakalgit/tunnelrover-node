@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import * as path from 'path';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
-import { XrayModule } from './xray/xray.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -11,7 +11,7 @@ import { XrayModule } from './xray/xray.module';
       isGlobal: true,
     }),
     AuthModule,
-    XrayModule,
+    UserModule,
   ],
 })
 export class AppModule {}

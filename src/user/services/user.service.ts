@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { XtlsApi } from '@remnawave/xtls-sdk';
 
 @Injectable()
-export class XrayService {
+export class UserService {
   private api!: XtlsApi;
   private readonly TAGS = ['vless-ws'];
 

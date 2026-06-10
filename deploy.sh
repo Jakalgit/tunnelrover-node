@@ -1,5 +1,5 @@
 #!/bin/bash
-# Middle-node deploy: one shared nginx + N relay stacks (xray + nest-app per domain).
+# Middle-node deploy: one shared nginx + N relay stacks (user + nest-app per domain).
 #
 # 1. Copy deploy/nodes.example.json → deploy/nodes.json (nodeToken + exit per node).
 # 2. Run on VPS: sudo ./deploy.sh
@@ -43,7 +43,7 @@ mkdir -p "$GENERATED_NGINX_DIR" "$GENERATED_NODES_DIR"
 
 CERT_DOMAINS=()
 
-# --- per-node: nginx snippet, xray config, nest .env ---
+# --- per-node: nginx snippet, user config, nest .env ---
 for i in $(seq 0 $((NODE_COUNT - 1))); do
   NAME="$(jq -r ".[$i].name" "$NODES_FILE")"
   DOMAIN="$(jq -r ".[$i].domain" "$NODES_FILE")"
@@ -95,7 +95,7 @@ EOF
   echo "  - $NAME ($DOMAIN)"
 done
 
-# --- docker-compose fragment: xray + nest-app per node ---
+# --- docker-compose fragment: user + nest-app per node ---
 {
   echo 'version: "3.9"'
   echo ''
