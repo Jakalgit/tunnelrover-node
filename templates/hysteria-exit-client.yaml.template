@@ -1,0 +1,14 @@
+server: {{EXIT_ADDRESS}}:{{EXIT_PORT}}
+
+auth: {{EXIT_AUTH}}
+
+tls:
+  sni: {{EXIT_SNI}}
+  insecure: false
+
+socks5:
+  listen: :1080
+
+bandwidth:
+  up: 1 gbps
+  down: 1 gbps

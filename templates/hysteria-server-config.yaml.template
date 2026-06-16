@@ -1,0 +1,34 @@
+listen: :443
+
+tls:
+  cert: /etc/hysteria/certs/fullchain.pem
+  key: /etc/hysteria/certs/privkey.pem
+
+auth:
+  type: http
+  http:
+    url: http://nest-app:5000/internal/hysteria/auth
+    insecure: true
+
+trafficStats:
+  listen: :9999
+  secret: "{{TRAFFIC_STATS_SECRET}}"
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://www.bing.com
+
+bandwidth:
+  up: 1 gbps
+  down: 1 gbps
+
+outbounds:
+  - name: to-exit
+    type: socks5
+    socks5:
+      addr: hysteria-exit:1080
+
+acl:
+  inline:
+    - to-exit(all)
