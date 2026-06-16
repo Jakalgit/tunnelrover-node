@@ -1,26 +1,11 @@
-[
-  {
-    "name": "node-us-1",
-    "domain": "node-us-1.tunnelrover.com",
-    "nodeToken": "REPLACE_NODE_TOKEN_US_1",
-    "exit": {
-      "address": "5.8.19.127",
-      "id": "00000000-0000-0000-0000-000000000000",
-      "sni": "ads.x5.ru",
-      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
-      "shortId": "0123456789abcdef"
-    }
-  },
-  {
-    "name": "node-hk-1",
-    "domain": "node-hk-1.tunnelrover.com",
-    "nodeToken": "REPLACE_NODE_TOKEN_HK_1",
-    "exit": {
-      "address": "5.8.19.127",
-      "id": "00000000-0000-0000-0000-000000000000",
-      "sni": "ads.x5.ru",
-      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
-      "shortId": "0123456789abcdef"
-    }
+{
+  "name": "node-us-1",
+  "domain": "node-us-1.tunnelrover.com",
+  "nodeToken": "REPLACE_NODE_TOKEN",
+  "exit": {
+    "address": "exit-nl-1.tunnelrover.com",
+    "port": 443,
+    "auth": "REPLACE_EXIT_SERVICE_UUID",
+    "sni": "exit-nl-1.tunnelrover.com"
   }
-]
+}

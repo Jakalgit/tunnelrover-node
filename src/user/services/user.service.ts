@@ -1,50 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { XtlsApi } from '@remnawave/xtls-sdk';
+import { RedisService } from '../../redis/redis.service';
+import { HysteriaKickService } from '../../hysteria/services/hysteria-kick.service';
 
 @Injectable()
 export class UserService {
-  private api!: XtlsApi;
-  private readonly TAGS = ['vless-ws'];
-
-  constructor(private readonly configService: ConfigService) {
-    const XRAY_HOST = configService.get<string>('XRAY_HOST');
-    const XRAY_PORT = configService.get<string>('XRAY_PORT');
-    this.api = new XtlsApi({
-      connectionUrl: `${XRAY_HOST}:${XRAY_PORT}`,
-    });
-  }
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly hysteriaKickService: HysteriaKickService,
+  ) {}
 
   async addUser(uuids: string[]) {
     const result: { uuid: string; isOk: boolean; message: string }[] = [];
 
-    for (const u of uuids) {
-      let isOk = true;
-      for (const tag of this.TAGS) {
-        try {
-          const response = await this.api.handler.addVlessUser({
-            level: 0,
-            uuid: u,
-            tag,
-            username: u,
-            flow: '',
-          });
-
-          isOk = !!response.isOk;
-        } catch (error: unknown) {
-          isOk = false;
-          throw error;
-        }
-      }
-
-      result.push({
-        uuid: u,
-        isOk,
-        message: '',
-      });
-
-      if (!isOk) {
-        await this.removeUser([u]);
+    for (const uuid of uuids) {
+      try {
+        await this.redisService.addUsers([uuid]);
+        result.push({ uuid, isOk: true, message: '' });
+      } catch {
+        result.push({ uuid, isOk: false, message: '' });
       }
     }
 
@@ -52,50 +25,27 @@ export class UserService {
   }
 
   async removeUser(uuids: string[]) {
-    const promises = uuids
-      .map((el) => {
-        return this.TAGS.map((tag) => this.api.handler.removeUser(tag, el));
-      })
-      .flat();
-    await Promise.all(promises);
+    await this.redisService.removeUsers(uuids);
+    await this.hysteriaKickService.kickUsers(uuids);
   }
 
   async getInboundUsers() {
-    const users: Set<string> = new Set();
-    for (const tag of this.TAGS) {
-      const response = await this.api.handler.getInboundUsers(tag);
-      if (response.isOk) {
-        response.data.users.forEach((user) => {
-          users.add(user.username);
-        });
-      }
-    }
+    const users = await this.redisService.listUsers();
 
     return {
       isOk: true,
       data: {
-        users: [...users].map((uuid) => ({ username: uuid })),
+        users: users.map((uuid) => ({ username: uuid })),
       },
     };
   }
 
   async getInboundUsersCount() {
-    let maxUsers = 1000000000;
-
-    for (const tag of this.TAGS) {
-      const response = await this.api.handler.getInboundUsersCount(tag);
-
-      if (response.isOk) {
-        if (maxUsers === 1000000000) {
-          maxUsers = 0;
-        }
-        maxUsers = Math.max(maxUsers, response.data);
-      }
-    }
+    const count = await this.redisService.countUsers();
 
     return {
       isOk: true,
-      data: maxUsers,
+      data: count,
     };
   }
 }

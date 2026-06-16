@@ -11,15 +11,62 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "443:443"
       - "8080:8080"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./generated/nginx/nodes:/etc/nginx/conf.d/nodes:ro
+      - ./generated/nginx:/etc/nginx/conf.d/nodes:ro
       - ./nginx-certs:/etc/nginx/certs:ro
       - ./index.html:/etc/nginx/html/index.html:ro
     networks:
       - instance-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    networks:
+      - instance-network
+
+  hysteria-exit:
+    image: tobyxdd/hysteria:latest
+    container_name: hysteria-exit
+    restart: unless-stopped
+    volumes:
+      - ./generated/hysteria-exit-client.yaml:/etc/hysteria/config.yaml:ro
+    command: client -c /etc/hysteria/config.yaml
+    networks:
+      - instance-network
+
+  nest-app:
+    container_name: nest-app
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile.nestjs
+    env_file:
+      - ./generated/.env
+    networks:
+      - instance-network
+    depends_on:
+      - redis
+
+  hysteria:
+    image: tobyxdd/hysteria:latest
+    container_name: hysteria
+    restart: unless-stopped
+    ports:
+      - "443:443/udp"
+      - "443:443/tcp"
+    volumes:
+      - ./generated/hysteria-server-config.yaml:/etc/hysteria/config.yaml:ro
+      - ./nginx-certs:/etc/hysteria/certs:ro
+    command: server -c /etc/hysteria/config.yaml
+    networks:
+      - instance-network
+    depends_on:
+      - nest-app
+      - hysteria-exit
 
   promtail:
     image: grafana/promtail:latest
