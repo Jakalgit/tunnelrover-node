@@ -24,11 +24,7 @@ bandwidth:
   down: 1 gbps
 
 outbounds:
-  - name: to-exit
+  - name: to_exit
     type: socks5
     socks5:
       addr: hysteria-exit:1080
-
-acl:
-  inline:
-    - to-exit(all)
