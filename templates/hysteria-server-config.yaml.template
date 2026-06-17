@@ -17,7 +17,7 @@ trafficStats:
 masquerade:
   type: proxy
   proxy:
-    url: https://www.bing.com
+    url: https://www.cloudflare.com
 
 bandwidth:
   up: 1 gbps
