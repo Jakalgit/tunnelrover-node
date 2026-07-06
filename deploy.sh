@@ -80,5 +80,5 @@ docker compose up -d --build
 
 echo "Done."
 echo "  Hysteria: $ROVER_NODE_HOST:443 (UDP+TCP)"
-echo "  Nest API: https://$ROVER_NODE_HOST:8080/xray"
+echo "  Nest API: https://$ROVER_NODE_HOST:8080/user"
 echo "  Client auth: hysteria2://<USER_UUID>@$ROVER_NODE_HOST:443?sni=$ROVER_NODE_HOST"
