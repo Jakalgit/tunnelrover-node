@@ -19,6 +19,12 @@ masquerade:
   proxy:
     url: https://www.bing.com
 
+quic:
+  maxIdleTimeout: 120s
+  keepAlivePeriod: 10s
+
+udpIdleTimeout: 600s
+
 bandwidth:
   up: 1 gbps
   down: 1 gbps
