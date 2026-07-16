@@ -23,6 +23,8 @@ export class XrayService {
       for (const tag of this.TAGS) {
         try {
           const response = await this.api.handler.addVlessUser({
+            level: 0,
+            username: u,
             uuid: u,
             tag,
             flow: '',
