@@ -14,7 +14,8 @@
 
   "inbounds": [
     {
-      "tag": "vless-ws",
+      "tag": "vless-xhttp",
+      "listen": "0.0.0.0",
       "port": 443,
       "protocol": "vless",
       "settings": {
@@ -22,10 +23,10 @@
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "ws",
+        "network": "xhttp",
         "security": "none",
-        "wsSettings": {
-          "path": "/ws"
+        "xhttpSettings": {
+          "mode": "auto"
         }
       }
     },
@@ -42,7 +43,8 @@
 
   "outbounds": [
     {
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "direct"
     },
     {
       "protocol": "blackhole",
@@ -54,7 +56,9 @@
     "rules": [
       {
         "type": "field",
-        "inboundTag": ["api-in"],
+        "inboundTag": [
+          "api-in"
+        ],
         "outboundTag": "api"
       }
     ]
