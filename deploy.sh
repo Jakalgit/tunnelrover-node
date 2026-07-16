@@ -4,9 +4,6 @@ set -e
 
 NODE_NAME="node-nl-1"
 ROVER_NODE_HOST="$NODE_NAME.tunnelrover.com"
-
-# EXT_IFACE="eth0"
-# DOCKER_SUBNET="172.17.0.0/16"
 SWAP_SIZE="3G"
 
 echo "XRAY_HOST=xray-$NODE_NAME" >> .env
