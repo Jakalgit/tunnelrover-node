@@ -5,7 +5,7 @@ import { XtlsApi } from '@remnawave/xtls-sdk';
 @Injectable()
 export class XrayService {
   private api!: XtlsApi;
-  private readonly TAGS = ['vless-ws'];
+  private readonly TAGS = ['vless-xhttp'];
 
   constructor(private readonly configService: ConfigService) {
     const XRAY_HOST = configService.get<string>('XRAY_HOST');
@@ -23,16 +23,15 @@ export class XrayService {
       for (const tag of this.TAGS) {
         try {
           const response = await this.api.handler.addVlessUser({
-            level: 0,
             uuid: u,
             tag,
-            username: u,
             flow: '',
           });
 
           isOk = !!response.isOk;
         } catch (error: unknown) {
           isOk = false;
+          console.error(error);
           throw error;
         }
       }
