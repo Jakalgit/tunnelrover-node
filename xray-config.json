@@ -22,11 +22,17 @@
         "clients": [],
         "decryption": "none"
       },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
+      },
       "streamSettings": {
         "network": "xhttp",
         "security": "none",
         "xhttpSettings": {
-          "mode": "auto"
+          "mode": "packet-up",
+          "path": "/assets/build/_app/immutable/chunks/",
+          "host": "server-node.tunnelrover.com"
         }
       }
     },
