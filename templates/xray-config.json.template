@@ -12,18 +12,25 @@
   },
   "inbounds": [
     {
-      "tag": "vless-ws",
+      "tag": "vless-xhttp",
+      "listen": "0.0.0.0",
       "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [],
         "decryption": "none"
       },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
+      },
       "streamSettings": {
-        "network": "ws",
+        "network": "xhttp",
         "security": "none",
-        "wsSettings": {
-          "path": "/ws"
+        "xhttpSettings": {
+          "mode": "{{XHTTP_MODE}}",
+          "path": "{{XHTTP_PATH}}",
+          "host": "{{DOMAIN}}"
         }
       }
     },
@@ -47,19 +54,36 @@
           "port": 443,
           "users": [{
             "id": "{{EXIT_ID}}",
-            "encryption": "none",
-            "flow": "xtls-rprx-vision"
+            "encryption": "none"
           }]
         }]
       },
       "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "serverName": "{{EXIT_SNI}}",
-          "publicKey": "{{EXIT_PUBLIC_KEY}}",
-          "shortId": "{{EXIT_SHORT_ID}}",
-          "fingerprint": "chrome"
+        "network": "xhttp",
+        "security": "tls",
+        "sockopt": {
+          "tcpKeepAliveIdle": 30,
+          "tcpKeepAliveInterval": 10,
+          "tcpNoDelay": true
+        },
+        "tlsSettings": {
+          "alpn": ["h2"],
+          "fingerprint": "chrome",
+          "serverName": "{{EXIT_SNI}}"
+        },
+        "xhttpSettings": {
+          "mode": "{{EXIT_XHTTP_MODE}}",
+          "path": "{{EXIT_XHTTP_PATH}}",
+          "extra": {
+            "xmux": {
+              "cMaxReuseTimes": 0,
+              "hKeepAlivePeriod": 0,
+              "hMaxRequestTimes": "600-900",
+              "hMaxReusableSecs": "1800-3000",
+              "maxConcurrency": "0"
+            },
+            "xPaddingBytes": "100-1000"
+          }
         }
       }
     },
@@ -76,7 +100,7 @@
     "rules": [
       {
         "type": "field",
-        "inboundTag": ["vless-ws"],
+        "inboundTag": ["vless-xhttp"],
         "outboundTag": "to-exit"
       },
       {

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Middle-node deploy: one shared nginx + N relay stacks (user + nest-app per domain).
+# Middle-node-xhttp deploy: one shared nginx + N relay stacks (xray xhttp + nest-app per domain).
 #
-# 1. Copy deploy/nodes.example.json → deploy/nodes.json (nodeToken + exit per node).
+# 1. Copy deploy/nodes.example.json → deploy/nodes.json (nodeToken + exit + xhttpPath per node).
 # 2. Run on VPS: sudo ./deploy.sh
 
 set -euo pipefail
@@ -49,10 +49,12 @@ for i in $(seq 0 $((NODE_COUNT - 1))); do
   DOMAIN="$(jq -r ".[$i].domain" "$NODES_FILE")"
   EXIT_ADDRESS="$(jq -r ".[$i].exit.address" "$NODES_FILE")"
   EXIT_ID="$(jq -r ".[$i].exit.id" "$NODES_FILE")"
-  EXIT_SNI="$(jq -r ".[$i].exit.sni" "$NODES_FILE")"
-  EXIT_PUBLIC_KEY="$(jq -r ".[$i].exit.publicKey" "$NODES_FILE")"
-  EXIT_SHORT_ID="$(jq -r ".[$i].exit.shortId" "$NODES_FILE")"
+  EXIT_SNI="$(jq -r ".[$i].exit.sni // .[$i].exit.address" "$NODES_FILE")"
+  EXIT_XHTTP_PATH="$(jq -r ".[$i].exit.xhttpPath // .[$i].xhttpPath // \"/assets/build/_app/immutable/chunks/\"" "$NODES_FILE")"
+  EXIT_XHTTP_MODE="$(jq -r ".[$i].exit.xhttpMode // .[$i].xhttpMode // \"packet-up\"" "$NODES_FILE")"
   NODE_TOKEN_VALUE="$(jq -r ".[$i].nodeToken // empty" "$NODES_FILE")"
+  XHTTP_PATH="$(jq -r ".[$i].xhttpPath // \"/assets/build/_app/immutable/chunks/\"" "$NODES_FILE")"
+  XHTTP_MODE="$(jq -r ".[$i].xhttpMode // \"packet-up\"" "$NODES_FILE")"
 
   if [[ -z "$NAME" || "$NAME" == "null" || -z "$DOMAIN" || "$DOMAIN" == "null" ]]; then
     echo "Node #$i: name and domain are required"
@@ -75,14 +77,18 @@ for i in $(seq 0 $((NODE_COUNT - 1))); do
   sed \
     -e "s|{{NODE_NAME}}|$NAME|g" \
     -e "s|{{DOMAIN}}|$DOMAIN|g" \
+    -e "s|{{XHTTP_PATH}}|$XHTTP_PATH|g" \
     "$TEMPLATE_NGINX" > "$GENERATED_NGINX_DIR/$NAME.conf"
 
   sed \
     -e "s|{{EXIT_ADDRESS}}|$EXIT_ADDRESS|g" \
     -e "s|{{EXIT_ID}}|$EXIT_ID|g" \
     -e "s|{{EXIT_SNI}}|$EXIT_SNI|g" \
-    -e "s|{{EXIT_PUBLIC_KEY}}|$EXIT_PUBLIC_KEY|g" \
-    -e "s|{{EXIT_SHORT_ID}}|$EXIT_SHORT_ID|g" \
+    -e "s|{{EXIT_XHTTP_PATH}}|$EXIT_XHTTP_PATH|g" \
+    -e "s|{{EXIT_XHTTP_MODE}}|$EXIT_XHTTP_MODE|g" \
+    -e "s|{{DOMAIN}}|$DOMAIN|g" \
+    -e "s|{{XHTTP_PATH}}|$XHTTP_PATH|g" \
+    -e "s|{{XHTTP_MODE}}|$XHTTP_MODE|g" \
     "$TEMPLATE_XRAY" > "$NODE_DIR/xray-config.json"
 
   cat > "$NODE_DIR/.env" <<EOF
@@ -226,7 +232,9 @@ echo "==> Starting stack..."
 docker compose -f docker-compose.yaml -f "$COMPOSE_NODES_FILE" up -d --build
 
 echo "Done. Shared nginx routes by server_name:"
-for d in "${CERT_DOMAINS[@]}"; do
-  echo "  https://$d/ws  → xray relay"
+for i in $(seq 0 $((NODE_COUNT - 1))); do
+  d="$(jq -r ".[$i].domain" "$NODES_FILE")"
+  p="$(jq -r ".[$i].xhttpPath // \"/assets/build/_app/immutable/chunks/\"" "$NODES_FILE")"
+  echo "  https://$d$p  → xray relay (xhttp)"
   echo "  https://$d:8080  → nest-app control API"
 done

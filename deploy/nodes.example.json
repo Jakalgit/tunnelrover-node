@@ -3,24 +3,28 @@
     "name": "node-us-1",
     "domain": "node-us-1.tunnelrover.com",
     "nodeToken": "REPLACE_NODE_TOKEN_US_1",
+    "xhttpPath": "/assets/build/_app/immutable/chunks/",
+    "xhttpMode": "packet-up",
     "exit": {
-      "address": "5.8.19.127",
-      "id": "00000000-0000-0000-0000-000000000000",
-      "sni": "ads.x5.ru",
-      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
-      "shortId": "0123456789abcdef"
+      "address": "exit-nl-1.tunnelrover.com",
+      "id": "REPLACE_RELAY_UUID",
+      "sni": "exit-nl-1.tunnelrover.com",
+      "xhttpPath": "/assets/build/_app/immutable/chunks/",
+      "xhttpMode": "packet-up"
     }
   },
   {
     "name": "node-hk-1",
-    "domain": "node-hk-1.tunnelrover.com",
+    "domain": "node-hk-1.tunnelrover.ru",
     "nodeToken": "REPLACE_NODE_TOKEN_HK_1",
+    "xhttpPath": "/assets/build/_app/immutable/chunks/",
+    "xhttpMode": "packet-up",
     "exit": {
-      "address": "5.8.19.127",
-      "id": "00000000-0000-0000-0000-000000000000",
-      "sni": "ads.x5.ru",
-      "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
-      "shortId": "0123456789abcdef"
+      "address": "exit-nl-1.tunnelrover.com",
+      "id": "REPLACE_RELAY_UUID",
+      "sni": "exit-nl-1.tunnelrover.com",
+      "xhttpPath": "/assets/build/_app/immutable/chunks/",
+      "xhttpMode": "packet-up"
     }
   }
 ]
