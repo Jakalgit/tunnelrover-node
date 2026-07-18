@@ -5,9 +5,12 @@ import { XtlsApi } from '@remnawave/xtls-sdk';
 @Injectable()
 export class UserService {
   private api!: XtlsApi;
-  private readonly TAGS = ['vless-ws'];
+  private readonly TAGS: string[];
 
   constructor(private readonly configService: ConfigService) {
+    this.TAGS = [
+      configService.get<string>('XRAY_INBOUND_TAG') ?? 'vless-xhttp',
+    ];
     const XRAY_HOST = configService.get<string>('XRAY_HOST');
     const XRAY_PORT = configService.get<string>('XRAY_PORT');
     this.api = new XtlsApi({
