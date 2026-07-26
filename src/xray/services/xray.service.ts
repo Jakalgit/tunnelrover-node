@@ -15,6 +15,10 @@ export class XrayService {
     });
   }
 
+  get inboundTags() {
+    return [...this.TAGS];
+  }
+
   async addUser(uuids: string[]) {
     const result: { uuid: string; isOk: boolean; message: string }[] = [];
 
@@ -97,6 +101,22 @@ export class XrayService {
     return {
       isOk: true,
       data: maxUsers,
+    };
+  }
+
+  async getSysStats() {
+    const response = await this.api.stats.getSysStats();
+    return {
+      isOk: !!response.isOk,
+      data: response.isOk ? response.data : null,
+    };
+  }
+
+  async getInboundStats(tag: string) {
+    const response = await this.api.stats.getInboundStats(tag);
+    return {
+      isOk: !!response.isOk,
+      data: response.isOk ? response.data.inbound : null,
     };
   }
 }

@@ -5,5 +5,6 @@ import { XrayService } from './services/xray.service';
 @Module({
   controllers: [XrayController],
   providers: [XrayService],
+  exports: [XrayService],
 })
 export class XrayModule {}
