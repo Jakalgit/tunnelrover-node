@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="DeskMetric helps remote teams track focus time, meeting load, and weekly goals without invasive monitoring." />
+  <title>DeskMetric — Weekly focus reports for remote teams</title>
+  <style>
+      :root {
+          --bg: #faf9f7;
+          --surface: #ffffff;
+          --text: #1a1d21;
+          --muted: #5c6570;
+          --line: #e8e4de;
+          --brand: #2563eb;
+          --brand-dark: #1d4ed8;
+          --accent: #0f766e;
+          --shadow: 0 18px 50px rgba(26, 29, 33, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+          margin: 0;
+          font-family: "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+          color: var(--text);
+          background: var(--bg);
+          line-height: 1.6;
+      }
+
+      a { color: inherit; text-decoration: none; }
+
+      .wrap {
+          width: min(1120px, calc(100% - 32px));
+          margin: 0 auto;
+      }
+
+      header {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          backdrop-filter: blur(10px);
+          background: rgba(250, 249, 247, 0.88);
+          border-bottom: 1px solid var(--line);
+      }
+
+      .nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 16px 0;
+      }
+
+      .logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 700;
+          font-size: 18px;
+          letter-spacing: -0.02em;
+      }
+
+      .logo-mark {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, var(--brand), #60a5fa);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+      }
+
+      .nav-links {
+          display: flex;
+          gap: 22px;
+          color: var(--muted);
+          font-size: 15px;
+      }
+
+      .nav-links a:hover { color: var(--text); }
+
+      .btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px 18px;
+          border-radius: 12px;
+          font-weight: 600;
+          font-size: 15px;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: 0.15s ease;
+      }
+
+      .btn-primary {
+          background: var(--brand);
+          color: #fff;
+      }
+
+      .btn-primary:hover { background: var(--brand-dark); }
+
+      .btn-secondary {
+          background: var(--surface);
+          border-color: var(--line);
+          color: var(--text);
+      }
+
+      .hero {
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 40px;
+          align-items: center;
+          padding: 72px 0 48px;
+      }
+
+      .eyebrow {
+          display: inline-block;
+          margin-bottom: 16px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: #eff6ff;
+          color: var(--brand);
+          font-size: 13px;
+          font-weight: 600;
+      }
+
+      h1 {
+          margin: 0 0 16px;
+          font-size: clamp(34px, 6vw, 56px);
+          line-height: 1.05;
+          letter-spacing: -0.04em;
+      }
+
+      .lead {
+          margin: 0 0 24px;
+          color: var(--muted);
+          font-size: 18px;
+          max-width: 34rem;
+      }
+
+      .hero-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 18px;
+      }
+
+      .note {
+          color: var(--muted);
+          font-size: 14px;
+      }
+
+      .preview {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 24px;
+          box-shadow: var(--shadow);
+          overflow: hidden;
+      }
+
+      .preview-top {
+          display: flex;
+          gap: 8px;
+          padding: 14px 16px;
+          border-bottom: 1px solid var(--line);
+          background: #fcfcfb;
+      }
+
+      .preview-top span {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #d8dee6;
+      }
+
+      .preview-body { padding: 22px; }
+
+      .metric-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
+          margin-bottom: 18px;
+      }
+
+      .metric {
+          padding: 16px;
+          border-radius: 16px;
+          background: #f8fafc;
+          border: 1px solid var(--line);
+      }
+
+      .metric strong {
+          display: block;
+          font-size: 28px;
+          margin-bottom: 4px;
+          letter-spacing: -0.03em;
+      }
+
+      .metric span {
+          color: var(--muted);
+          font-size: 14px;
+      }
+
+      .bars {
+          display: flex;
+          align-items: end;
+          gap: 8px;
+          height: 120px;
+          padding-top: 8px;
+      }
+
+      .bar {
+          flex: 1;
+          border-radius: 8px 8px 4px 4px;
+          background: linear-gradient(180deg, #93c5fd, var(--brand));
+      }
+
+      .section {
+          padding: 28px 0 64px;
+      }
+
+      .section h2 {
+          margin: 0 0 10px;
+          font-size: 32px;
+          letter-spacing: -0.03em;
+      }
+
+      .section-intro {
+          margin: 0 0 28px;
+          color: var(--muted);
+          max-width: 640px;
+      }
+
+      .features {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 18px;
+      }
+
+      .feature {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 18px;
+          padding: 22px;
+      }
+
+      .feature h3 {
+          margin: 0 0 8px;
+          font-size: 18px;
+      }
+
+      .feature p {
+          margin: 0;
+          color: var(--muted);
+          font-size: 15px;
+      }
+
+      .article {
+          display: grid;
+          grid-template-columns: 1.2fr 0.8fr;
+          gap: 28px;
+          align-items: start;
+      }
+
+      .article-card,
+      .sidebar-card {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 20px;
+          padding: 28px;
+          box-shadow: var(--shadow);
+      }
+
+      .article-card h2 {
+          margin-top: 0;
+          font-size: 30px;
+      }
+
+      .article-card p {
+          color: var(--muted);
+          font-size: 17px;
+      }
+
+      .article-card ul {
+          margin: 18px 0 0;
+          padding-left: 20px;
+          color: var(--muted);
+      }
+
+      .sidebar-card h3 {
+          margin: 0 0 12px;
+          font-size: 18px;
+      }
+
+      .quote {
+          padding: 16px;
+          border-left: 4px solid var(--accent);
+          background: #f0fdfa;
+          border-radius: 0 12px 12px 0;
+          color: #134e4a;
+          font-size: 15px;
+      }
+
+      .pricing {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 18px;
+      }
+
+      .plan {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 20px;
+          padding: 24px;
+      }
+
+      .plan.featured {
+          border-color: #bfdbfe;
+          box-shadow: var(--shadow);
+      }
+
+      .plan h3 {
+          margin: 0 0 8px;
+      }
+
+      .price {
+          font-size: 34px;
+          font-weight: 700;
+          letter-spacing: -0.04em;
+          margin: 8px 0 16px;
+      }
+
+      .price small {
+          font-size: 15px;
+          color: var(--muted);
+          font-weight: 500;
+      }
+
+      .plan ul {
+          margin: 0 0 20px;
+          padding-left: 18px;
+          color: var(--muted);
+          font-size: 15px;
+      }
+
+      footer {
+          border-top: 1px solid var(--line);
+          padding: 28px 0 40px;
+          color: var(--muted);
+          font-size: 14px;
+      }
+
+      .footer-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          flex-wrap: wrap;
+      }
+
+      @media (max-width: 900px) {
+          .hero,
+          .article,
+          .features,
+          .pricing {
+              grid-template-columns: 1fr;
+          }
+
+          .nav-links { display: none; }
+      }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/">
+      <span class="logo-mark" aria-hidden="true"></span>
+      DeskMetric
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#product">Product</a>
+      <a href="#article">Guide</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <a class="btn btn-primary" href="#pricing">Start free trial</a>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero" id="product">
+    <div>
+      <span class="eyebrow">Updated for Q2 2026</span>
+      <h1>Know where your team's week actually goes</h1>
+      <p class="lead">
+        DeskMetric turns calendar blocks, task updates, and focus sessions into a simple
+        Friday report managers can read in two minutes.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#pricing">Try DeskMetric free</a>
+        <a class="btn btn-secondary" href="#article">Read the setup guide</a>
+      </div>
+      <p class="note">No screenshots. No keystroke logging. Works with Google Calendar and Linear.</p>
+    </div>
+
+    <aside class="preview" aria-label="Product preview">
+      <div class="preview-top">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="preview-body">
+        <div class="metric-grid">
+          <div class="metric">
+            <strong>18h</strong>
+            <span>Deep work</span>
+          </div>
+          <div class="metric">
+            <strong>6.5h</strong>
+            <span>Meetings</span>
+          </div>
+          <div class="metric">
+            <strong>92%</strong>
+            <span>Goals on track</span>
+          </div>
+          <div class="metric">
+            <strong>4</strong>
+            <span>Blocked tasks</span>
+          </div>
+        </div>
+        <div class="bars" aria-hidden="true">
+          <div class="bar" style="height: 48%"></div>
+          <div class="bar" style="height: 72%"></div>
+          <div class="bar" style="height: 61%"></div>
+          <div class="bar" style="height: 88%"></div>
+          <div class="bar" style="height: 54%"></div>
+          <div class="bar" style="height: 79%"></div>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="wrap section">
+    <h2>Built for teams that hate surveillance tools</h2>
+    <p class="section-intro">
+      Most productivity dashboards feel invasive. DeskMetric only aggregates work signals your team
+      already creates: calendar events, issue status changes, and optional focus timers.
+    </p>
+    <div class="features">
+      <article class="feature">
+        <h3>Weekly digest</h3>
+        <p>Automatic summary every Friday with focus time, meeting load, and carry-over tasks.</p>
+      </article>
+      <article class="feature">
+        <h3>Manager view</h3>
+        <p>See blockers and capacity trends without opening ten different apps.</p>
+      </article>
+      <article class="feature">
+        <h3>Privacy controls</h3>
+        <p>Employees can hide titles, exclude personal calendars, and export their own data.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap section article" id="article">
+    <article class="article-card">
+      <h2>How to roll out a lightweight focus report in one afternoon</h2>
+      <p>
+        Teams often fail with analytics because the rollout is heavier than the product.
+        Start with one squad, connect calendar access, and agree on three metrics that matter
+        for the next sprint review.
+      </p>
+      <p>
+        In most setups, the first useful report appears after four working days. Managers use it
+        to spot meeting creep; ICs use it to protect two focus blocks per day.
+      </p>
+      <ul>
+        <li>Connect Google Calendar or Outlook in Settings → Integrations.</li>
+        <li>Invite up to 8 people on the Starter plan.</li>
+        <li>Pick a report template: Engineering, Design, or Customer Success.</li>
+        <li>Schedule the digest for Thursday 4:00 PM local time.</li>
+      </ul>
+    </article>
+
+    <aside class="sidebar-card">
+      <h3>Customer note</h3>
+      <p class="quote">
+        “We replaced a 40-row spreadsheet with DeskMetric and finally stopped arguing about
+        whether the team had time for the roadmap.”
+      </p>
+      <p style="margin: 16px 0 0; color: var(--muted); font-size: 14px;">
+        — Ops lead, 24-person software company
+      </p>
+    </aside>
+  </section>
+
+  <section class="wrap section" id="pricing">
+    <h2>Pricing</h2>
+    <p class="section-intro">All plans include SSO, CSV export, and email support.</p>
+    <div class="pricing">
+      <article class="plan">
+        <h3>Starter</h3>
+        <div class="price">$0 <small>/ month</small></div>
+        <ul>
+          <li>Up to 8 members</li>
+          <li>Weekly digest</li>
+          <li>1 integration</li>
+        </ul>
+        <a class="btn btn-secondary" href="#">Create workspace</a>
+      </article>
+      <article class="plan featured">
+        <h3>Team</h3>
+        <div class="price">$12 <small>/ user</small></div>
+        <ul>
+          <li>Unlimited history</li>
+          <li>Manager dashboards</li>
+          <li>Slack summaries</li>
+        </ul>
+        <a class="btn btn-primary" href="#">Start 14-day trial</a>
+      </article>
+      <article class="plan">
+        <h3>Business</h3>
+        <div class="price">$24 <small>/ user</small></div>
+        <ul>
+          <li>Audit logs</li>
+          <li>Custom report fields</li>
+          <li>Priority support</li>
+        </ul>
+        <a class="btn btn-secondary" href="#">Talk to sales</a>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <span>© 2026 DeskMetric, Inc.</span>
+    <span>Privacy · Terms · Security · Contact</span>
+  </div>
+</footer>
+</body>
+</html>

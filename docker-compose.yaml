@@ -15,8 +15,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx-certs:/etc/nginx/certs:ro
-    depends_on:
-      - xray
+      - ./index.html:/etc/nginx/html/index.html
     networks:
       - instance-network
 
@@ -28,6 +27,8 @@ services:
     volumes:
       - ./xray-config.json:/etc/xray/config.json
     command: xray run -config /etc/xray/config.json
+    depends_on:
+      - nginx
     networks:
       - instance-network
     restart: always

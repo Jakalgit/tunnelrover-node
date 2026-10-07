@@ -27,10 +27,10 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "ads.x5.ru:443",
+          "dest": "nginx:8443",
           "xver": 0,
           "serverNames": [
-            "ads.x5.ru"
+            "server-node.tunnelrover.com"
           ],
           "privateKey": "",
           "shortIds": [
