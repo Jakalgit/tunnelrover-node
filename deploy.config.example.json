@@ -1,0 +1,14 @@
+{
+  "nodeName": "node-nl-1",
+  "host": "node-nl-1.tunnelrover.com",
+  "nodeToken": "same-as-accessToken-in-DB",
+  "certbotEmail": "info@tunnelrover.com",
+  "swapSize": "3G",
+  "testMode": false,
+  "trafficStatsSecret": "",
+  "masqueradeUrl": "https://www.bing.com",
+  "bandwidth": {
+    "up": "1 gbps",
+    "down": "1 gbps"
+  }
+}

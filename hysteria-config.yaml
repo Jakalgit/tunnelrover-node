@@ -17,7 +17,7 @@ trafficStats:
 masquerade:
   type: proxy
   proxy:
-    url: https://www.bing.com
+    url: "{{MASQUERADE_URL}}"
 
 quic:
   maxIdleTimeout: 120s
@@ -26,5 +26,5 @@ quic:
 udpIdleTimeout: 600s
 
 bandwidth:
-  up: 1 gbps
-  down: 1 gbps
+  up: "{{BANDWIDTH_UP}}"
+  down: "{{BANDWIDTH_DOWN}}"

@@ -14,19 +14,12 @@ Backend ──Bearer──► https://node:8080/xray ──► nest ──► Re
 ## Deploy
 
 ```bash
-export NODE_TOKEN='same-as-accessToken-in-DB'
-sudo -E bash deploy.sh --node-name node-nl-1
+cp deploy.config.example.json deploy.config.json
+# fill nodeToken, nodeName, host
+sudo ./deploy.sh
 ```
 
-Re-deploy without certbot:
-
-```bash
-# stop docker first if renewing certs with certbot standalone
-docker compose down
-sudo certbot certonly --standalone -d node-nl-1.tunnelrover.com ...
-cp certs to nginx-certs/
-NODE_TOKEN='...' docker compose up -d --build
-```
+Re-running `./deploy.sh` is safe: templates are restored, Docker/certbot/swap are skipped if already present, the Hysteria traffic secret is reused.
 
 ## API (unchanged for tunnelrover-be)
 
