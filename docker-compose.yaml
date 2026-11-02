@@ -39,6 +39,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nestjs
+    env_file:
+      - .env
+    environment:
+      XRAY_HOST: xray
+      XRAY_PORT: "10085"
     networks:
       - instance-network
 

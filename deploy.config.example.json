@@ -1,0 +1,12 @@
+{
+  "nodeName": "node-nl-1",
+  "host": "node-nl-1.tunnelrover.com",
+  "nodeToken": "same-as-accessToken-in-DB",
+  "certbotEmail": "info@tunnelrover.com",
+  "swapSize": "3G",
+  "testMode": false,
+  "privateKey": "",
+  "publicKey": "",
+  "shortId": "1cb91b1d48ed",
+  "xrayPort": 10085
+}

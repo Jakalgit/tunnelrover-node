@@ -30,11 +30,11 @@
           "dest": "nginx:8443",
           "xver": 0,
           "serverNames": [
-            "server-node.tunnelrover.com"
+            "{{NODE_HOST}}"
           ],
-          "privateKey": "",
+          "privateKey": "{{PRIVATE_KEY}}",
           "shortIds": [
-            "1cb91b1d48ed"
+            "{{SHORT_ID}}"
           ]
         },
         "tcpSettings": {}

@@ -1,44 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
-NODE_NAME="node-nl-1"
-ROVER_NODE_HOST=""
-XRAY_PRIVATE_KEY=""
-SWAP_SIZE="3G"
-CERTBOT_EMAIL="info@tunnelrover.com"
+CONFIG_FILE="deploy.config.json"
+TEMPLATE_DIR=".deploy-templates"
+TEMPLATE_FILES=(docker-compose.yaml nginx.conf xray-config.json)
 
 usage() {
   cat <<EOF
-Usage: sudo ./deploy.sh [options]
+Usage: sudo ./deploy.sh [--config deploy.config.json]
 
-  --name NAME       Node name (default: node-nl-1)
-                    Host becomes NAME.tunnelrover.com unless --host is set
-  --host FQDN       Public hostname / REALITY SNI
-  --privkey KEY     Reuse an existing REALITY private key
-  --email EMAIL     Let's Encrypt email (default: ${CERTBOT_EMAIL})
-  -h, --help        Show this help
-
-Prints the REALITY public key at the end — put it in the backend node record
-together with shortId from xray-config.json and SNI = host.
+Copy deploy.config.example.json to deploy.config.json and fill nodeToken
+(and host/nodeName if needed). Re-running this script is safe.
+REALITY privateKey is generated once and saved back into the config.
 EOF
 }
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --name)
-      NODE_NAME="$2"
-      shift 2
-      ;;
-    --host)
-      ROVER_NODE_HOST="$2"
-      shift 2
-      ;;
-    --privkey)
-      XRAY_PRIVATE_KEY="$2"
-      shift 2
-      ;;
-    --email)
-      CERTBOT_EMAIL="$2"
+    --config)
+      CONFIG_FILE="$2"
       shift 2
       ;;
     -h|--help)
@@ -53,50 +33,72 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$ROVER_NODE_HOST" ]]; then
-  ROVER_NODE_HOST="${NODE_NAME}.tunnelrover.com"
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Run as root: sudo ./deploy.sh" >&2
+  exit 1
 fi
 
-require_root() {
-  if [[ "${EUID}" -ne 0 ]]; then
-    echo "Run as root: sudo ./deploy.sh --name ${NODE_NAME}" >&2
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  if [[ -f deploy.config.example.json ]]; then
+    cp deploy.config.example.json "$CONFIG_FILE"
+    echo "Created $CONFIG_FILE from example. Fill nodeToken and run again." >&2
     exit 1
   fi
-}
+  echo "Missing $CONFIG_FILE" >&2
+  exit 1
+fi
 
-install_docker() {
-  if ! command -v docker >/dev/null 2>&1; then
-    curl -sSL https://get.docker.com/ | CHANNEL=stable sh
-  fi
-  systemctl enable --now docker
+if ! command -v python3 >/dev/null 2>&1; then
   apt-get update -y
-  apt-get install -y certbot iptables-persistent nano docker-compose-plugin
+  apt-get install -y python3
+fi
+
+eval "$(python3 - "$CONFIG_FILE" <<'PY'
+import json, shlex, sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    cfg = json.load(f)
+
+def q(value):
+    return shlex.quote("" if value is None else str(value))
+
+node_name = cfg.get("nodeName") or "node-nl-1"
+host = cfg.get("host") or f"{node_name}.tunnelrover.com"
+test_mode = "true" if cfg.get("testMode") else "false"
+
+print(f"NODE_NAME={q(node_name)}")
+print(f"ROVER_NODE_HOST={q(host)}")
+print(f"NODE_TOKEN={q(cfg.get('nodeToken') or '')}")
+print(f"CERTBOT_EMAIL={q(cfg.get('certbotEmail') or 'info@tunnelrover.com')}")
+print(f"SWAP_SIZE={q(cfg.get('swapSize') or '3G')}")
+print(f"TEST_MODE={q(test_mode)}")
+print(f"XRAY_PRIVATE_KEY={q(cfg.get('privateKey') or '')}")
+print(f"XRAY_PUBLIC_KEY={q(cfg.get('publicKey') or '')}")
+print(f"SHORT_ID={q(cfg.get('shortId') or '1cb91b1d48ed')}")
+print(f"XRAY_PORT={q(cfg.get('xrayPort') or 10085)}")
+PY
+)"
+
+if [[ -z "$NODE_TOKEN" || "$NODE_TOKEN" == "same-as-accessToken-in-DB" ]]; then
+  echo "Set nodeToken in $CONFIG_FILE (same as accessToken in Tunnel Rover DB)." >&2
+  exit 1
+fi
+
+ensure_templates() {
+  mkdir -p "$TEMPLATE_DIR"
+  local file
+  for file in "${TEMPLATE_FILES[@]}"; do
+    if [[ ! -f "${TEMPLATE_DIR}/${file}" ]]; then
+      cp "$file" "${TEMPLATE_DIR}/${file}"
+    fi
+  done
 }
 
-ensure_swap() {
-  if [[ -f /swapfile ]]; then
-    return
-  fi
-  fallocate -l "$SWAP_SIZE" /swapfile
-  chmod 600 /swapfile
-  mkswap /swapfile
-  swapon /swapfile
-  echo "/swapfile none swap sw 0 0" >> /etc/fstab
-}
-
-issue_certs() {
-  certbot certonly \
-    --standalone \
-    -d "$ROVER_NODE_HOST" \
-    --non-interactive \
-    --agree-tos \
-    --email "$CERTBOT_EMAIL" \
-    --no-eff-email
-
-  mkdir -p ./nginx-certs
-  cp "/etc/letsencrypt/live/${ROVER_NODE_HOST}/fullchain.pem" ./nginx-certs/fullchain.pem
-  cp "/etc/letsencrypt/live/${ROVER_NODE_HOST}/privkey.pem" ./nginx-certs/privkey.pem
-  chmod 644 ./nginx-certs/*.pem
+restore_templates() {
+  local file
+  for file in "${TEMPLATE_FILES[@]}"; do
+    cp "${TEMPLATE_DIR}/${file}" "$file"
+  done
 }
 
 parse_x25519() {
@@ -107,7 +109,6 @@ parse_x25519() {
 
 ensure_reality_keys() {
   if [[ -n "$XRAY_PRIVATE_KEY" ]]; then
-    echo "Using provided REALITY private key"
     return
   fi
 
@@ -122,31 +123,135 @@ ensure_reality_keys() {
   fi
 }
 
-patch_files() {
-  echo "XRAY_HOST=xray-${NODE_NAME}" >> .env
+save_keys() {
+  python3 - "$CONFIG_FILE" "$XRAY_PRIVATE_KEY" "$XRAY_PUBLIC_KEY" "$SHORT_ID" <<'PY'
+import json, sys
 
-  sed -i "s/container_name:[[:space:]]*nginx-proxy/container_name: nginx-proxy-${NODE_NAME}/g" docker-compose.yaml
-  sed -i "s/container_name:[[:space:]]*nest-app/container_name: nest-app-${NODE_NAME}/g" docker-compose.yaml
-  sed -i "s/container_name:[[:space:]]*xray/container_name: xray-${NODE_NAME}/g" docker-compose.yaml
-
-  sed -i "s|http://nest-app:|http://nest-app-${NODE_NAME}:|g" nginx.conf
-  sed -i "s|server-node.tunnelrover.com|${ROVER_NODE_HOST}|g" nginx.conf
-  sed -i "s|server-node.tunnelrover.com|${ROVER_NODE_HOST}|g" xray-config.json
-  sed -i "s|\"privateKey\": \"\"|\"privateKey\": \"${XRAY_PRIVATE_KEY}\"|" xray-config.json
+path, private_key, public_key, short_id = sys.argv[1:]
+with open(path, encoding="utf-8") as f:
+    cfg = json.load(f)
+changed = False
+for key, value in (
+    ("privateKey", private_key),
+    ("publicKey", public_key),
+    ("shortId", short_id),
+):
+    if cfg.get(key) != value:
+        cfg[key] = value
+        changed = True
+if changed:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+PY
 }
 
-require_root
+patch_files() {
+  restore_templates
+
+  python3 - "$NODE_NAME" "$ROVER_NODE_HOST" "$XRAY_PRIVATE_KEY" "$SHORT_ID" <<'PY'
+import pathlib, sys
+
+node_name, host, private_key, short_id = sys.argv[1:]
+
+compose = pathlib.Path("docker-compose.yaml")
+text = compose.read_text()
+replacements = {
+    "container_name: nginx-proxy\n": f"container_name: nginx-proxy-{node_name}\n",
+    "container_name: nest-app\n": f"container_name: nest-app-{node_name}\n",
+    "container_name: xray\n": f"container_name: xray-{node_name}\n",
+}
+for old, new in replacements.items():
+    if old not in text:
+        raise SystemExit(f"docker-compose.yaml is missing {old!r}")
+    text = text.replace(old, new, 1)
+compose.write_text(text)
+
+nginx = pathlib.Path("nginx.conf")
+nginx.write_text(nginx.read_text().replace("server-node.tunnelrover.com", host))
+
+xray = pathlib.Path("xray-config.json")
+xray_text = xray.read_text()
+for token, value in (
+    ("{{NODE_HOST}}", host),
+    ("{{PRIVATE_KEY}}", private_key),
+    ("{{SHORT_ID}}", short_id),
+):
+    if token not in xray_text:
+        raise SystemExit(f"xray-config.json is missing {token}")
+    xray_text = xray_text.replace(token, value)
+xray.write_text(xray_text)
+PY
+
+  cat > .env <<EOF
+XRAY_HOST=xray
+XRAY_PORT=${XRAY_PORT}
+NODE_TOKEN=${NODE_TOKEN}
+TEST_MODE=${TEST_MODE}
+EOF
+}
+
+install_docker() {
+  if ! command -v docker >/dev/null 2>&1; then
+    curl -sSL https://get.docker.com/ | CHANNEL=stable sh
+  fi
+  systemctl enable --now docker
+
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y certbot iptables-persistent nano
+  fi
+
+  if ! docker compose version >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y docker-compose-plugin
+  fi
+}
+
+ensure_swap() {
+  if [[ -f /swapfile ]]; then
+    return
+  fi
+  fallocate -l "$SWAP_SIZE" /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+}
+
+issue_certs() {
+  local live_dir="/etc/letsencrypt/live/${ROVER_NODE_HOST}"
+
+  if [[ ! -f "${live_dir}/fullchain.pem" ]]; then
+    docker compose down || true
+    certbot certonly \
+      --standalone \
+      -d "$ROVER_NODE_HOST" \
+      --non-interactive \
+      --agree-tos \
+      --email "$CERTBOT_EMAIL" \
+      --no-eff-email
+  fi
+
+  mkdir -p ./nginx-certs
+  cp "${live_dir}/fullchain.pem" ./nginx-certs/fullchain.pem
+  cp "${live_dir}/privkey.pem" ./nginx-certs/privkey.pem
+  chmod 644 ./nginx-certs/*.pem
+}
+
+ensure_templates
 install_docker
 ensure_swap
 issue_certs
 ensure_reality_keys
+save_keys
 patch_files
 
-docker compose up -d
+docker compose up -d --build
 
 echo
 echo "Node host / REALITY SNI: ${ROVER_NODE_HOST}"
-echo "REALITY public key:      ${XRAY_PUBLIC_KEY:-'(reuse --privkey, public key not printed)'}"
-echo "REALITY shortId:         $(grep -A1 shortIds xray-config.json | tail -n1 | tr -d ' \"')"
+echo "REALITY public key:      ${XRAY_PUBLIC_KEY:-'(set publicKey in deploy.config.json)'}"
+echo "REALITY shortId:         ${SHORT_ID}"
 echo "Camouflage site:         http://${ROVER_NODE_HOST}/"
 echo "Control API:             https://${ROVER_NODE_HOST}:8080/"
