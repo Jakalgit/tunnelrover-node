@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
 import { XrayService } from '../services/xray.service';
 import { AuthGuard } from '../../auth/guards/auth.guard';
 
-@Controller('xray')
+@Controller('user')
 export class XrayController {
   constructor(private readonly xrayService: XrayService) {}
 

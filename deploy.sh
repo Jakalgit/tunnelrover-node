@@ -160,6 +160,7 @@ replacements = {
     "container_name: nginx-proxy\n": f"container_name: nginx-proxy-{node_name}\n",
     "container_name: nest-app\n": f"container_name: nest-app-{node_name}\n",
     "container_name: xray\n": f"container_name: xray-{node_name}\n",
+    "container_name: promtail\n": f"container_name: promtail-{node_name}\n",
 }
 for old, new in replacements.items():
     if old not in text:
