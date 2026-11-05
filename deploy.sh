@@ -36,7 +36,8 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 load_config() {
-  eval "$(python3 - "$NODES_FILE" <<'PY'
+  local parsed
+  parsed="$(python3 - "$NODES_FILE" <<'PY'
 import json, shlex, sys
 
 with open(sys.argv[1], encoding="utf-8") as f:
@@ -93,7 +94,8 @@ print(f"EXIT_SNI={q(exit_cfg.get('sni') or address)}")
 print(f"EXIT_PUBLIC_KEY={q(public_key)}")
 print(f"EXIT_SHORT_ID={q(short_id)}")
 PY
-)"
+)" || exit 1
+  eval "$parsed"
 }
 
 load_config
@@ -132,9 +134,10 @@ ensure_reality_keys() {
   fi
 
   if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
-    local output private public
-    output="$(docker run --rm teddysun/xray xray x25519)"
-    eval "$(python3 - "$output" <<'PY'
+    local output
+    output="$(docker run --rm teddysun/xray xray x25519)" || exit 1
+    local parsed
+    parsed="$(python3 - "$output" <<'PY'
 import shlex, sys
 text = sys.argv[1]
 private = public = None
@@ -142,20 +145,19 @@ for line in text.splitlines():
     if ":" not in line:
         continue
     key, value = line.split(":", 1)
-    key = key.strip().lower().replace(" ", "")
+    key = "".join(ch for ch in key.split("(", 1)[0].lower() if ch.isalpha())
     value = value.strip()
     if key in ("privatekey", "private"):
         private = value
-    elif key == "publickey":
-        public = value
-    elif key == "password" and not public:
+    elif key in ("publickey", "password", "public") and value:
         public = value
 if not private or not public:
     raise SystemExit("Could not parse xray x25519 output:\n" + text)
-print(f"PRIVATE_KEY={shlex.quote(private)}")
-print(f"PUBLIC_KEY={shlex.quote(public)}")
+print(f"declare -g PRIVATE_KEY={shlex.quote(private)}")
+print(f"declare -g PUBLIC_KEY={shlex.quote(public)}")
 PY
-)"
+)" || exit 1
+    eval "$parsed"
   fi
 
   if [[ -z "$SHORT_ID" ]]; then
@@ -235,6 +237,11 @@ issue_certs() {
 install_docker
 ensure_swap
 ensure_reality_keys
+
+if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" || -z "$SHORT_ID" ]]; then
+  echo "REALITY key was not written. deploy/nodes.json privateKey, publicKey, or shortId is empty." >&2
+  exit 1
+fi
 
 export NODE_NAME DOMAIN PRIVATE_KEY PUBLIC_KEY SHORT_ID
 export EXIT_ADDRESS EXIT_PORT EXIT_ID EXIT_SNI EXIT_PUBLIC_KEY EXIT_SHORT_ID
