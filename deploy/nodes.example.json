@@ -1,33 +1,19 @@
-[
-  {
-    "name": "node-us-1",
-    "domain": "node-us-1.tunnelrover.com",
-    "nodeToken": "REPLACE_NODE_TOKEN_US_1",
-    "certbotEmail": "info@tunnelrover.com",
-    "swapSize": "2G",
-    "testMode": false,
-    "xhttpPath": "/assets/build/_app/immutable/chunks/",
-    "xhttpMode": "packet-up",
-    "exit": {
-      "address": "exit-nl-1.tunnelrover.com",
-      "id": "REPLACE_RELAY_UUID",
-      "sni": "exit-nl-1.tunnelrover.com",
-      "xhttpPath": "/assets/build/_app/immutable/chunks/",
-      "xhttpMode": "packet-up"
-    }
-  },
-  {
-    "name": "node-hk-1",
-    "domain": "node-hk-1.tunnelrover.ru",
-    "nodeToken": "REPLACE_NODE_TOKEN_HK_1",
-    "xhttpPath": "/assets/build/_app/immutable/chunks/",
-    "xhttpMode": "packet-up",
-    "exit": {
-      "address": "exit-nl-1.tunnelrover.com",
-      "id": "REPLACE_RELAY_UUID",
-      "sni": "exit-nl-1.tunnelrover.com",
-      "xhttpPath": "/assets/build/_app/immutable/chunks/",
-      "xhttpMode": "packet-up"
-    }
+{
+  "name": "node-us-1",
+  "domain": "node-us-1.tunnelrover.com",
+  "nodeToken": "REPLACE_NODE_TOKEN",
+  "certbotEmail": "info@tunnelrover.com",
+  "swapSize": "2G",
+  "testMode": false,
+  "privateKey": "",
+  "publicKey": "",
+  "shortId": "",
+  "exit": {
+    "address": "exit-nl-1.example.com",
+    "port": 443,
+    "id": "REPLACE_RELAY_UUID",
+    "sni": "www.microsoft.com",
+    "publicKey": "REPLACE_EXIT_PUBLIC_KEY",
+    "shortId": "c3d5e7f9"
   }
-]
+}

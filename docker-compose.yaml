@@ -1,36 +1,4 @@
-# Reference copy. deploy.sh writes generated/docker-compose.yaml
-# and does not modify this file.
+# Reference copy. deploy.sh renders templates/docker-compose.yaml.template
+# into generated/docker-compose.yaml and does not modify this file.
+# Xray publishes 443. Nginx publishes 80 and 8080 and serves REALITY camouflage on 8443.
 version: "3.9"
-
-networks:
-  instance-network:
-    name: instance-network
-
-services:
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./generated/nginx/nodes:/etc/nginx/conf.d/nodes:ro
-      - ./nginx-certs:/etc/nginx/certs:ro
-      - ./index.html:/etc/nginx/html/index.html:ro
-    networks:
-      - instance-network
-
-  promtail:
-    image: grafana/promtail:latest
-    container_name: promtail
-    volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./promtail-config.yaml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    privileged: true
-    networks:
-      - instance-network

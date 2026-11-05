@@ -9,7 +9,7 @@ export class UserService {
 
   constructor(private readonly configService: ConfigService) {
     this.TAGS = [
-      configService.get<string>('XRAY_INBOUND_TAG') ?? 'vless-xhttp',
+      configService.get<string>('XRAY_INBOUND_TAG') ?? 'vless-tcp',
     ];
     const XRAY_HOST = configService.get<string>('XRAY_HOST');
     const XRAY_PORT = configService.get<string>('XRAY_PORT');
