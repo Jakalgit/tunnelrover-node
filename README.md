@@ -19,14 +19,10 @@ Client connects with **VLESS + xhttp** (TLS terminated by nginx, HTTP/2). Relay 
 
 ```bash
 chmod +x deploy.sh
-sudo bash deploy.sh
+sudo ./deploy.sh
 ```
 
-Re-deploy configs only:
-
-```bash
-SKIP_BOOTSTRAP=1 SKIP_CERTBOT=1 sudo ./deploy.sh
-```
+Re-running `./deploy.sh` is safe. Files in `templates/` and the repo `docker-compose.yaml` are only read. Each run rebuilds `generated/`, and certbot runs only when the existing certificate does not cover every domain in `nodes.json`.
 
 ## Generated files (gitignored)
 
@@ -35,12 +31,12 @@ SKIP_BOOTSTRAP=1 SKIP_CERTBOT=1 sudo ./deploy.sh
 | `generated/nginx/nodes/*.conf` | nginx `server` blocks with xhttp path → xray |
 | `generated/nodes/*/xray-config.json` | relay xray: xhttp inbound + REALITY outbound |
 | `generated/nodes/*/.env` | `XRAY_HOST`, `NODE_TOKEN` |
-| `generated/docker-compose.nodes.yaml` | xray + nest services per node |
+| `generated/docker-compose.yaml` | nginx, promtail, xray и nest на каждую ноду |
 
 ## Compose
 
 ```bash
-docker compose -f docker-compose.yaml -f generated/docker-compose.nodes.yaml up -d
+docker compose --project-directory . -f generated/docker-compose.yaml up -d
 ```
 
 ## Tunnel Rover DB (per middle node)
@@ -55,11 +51,11 @@ docker compose -f docker-compose.yaml -f generated/docker-compose.nodes.yaml up 
 ## Exit node (`tunnelrover-exit-node` branch `xhttp`)
 
 ```bash
-export DOMAIN=exit-nl-1.tunnelrover.com
-export RELAY_UUID=<same as exit.id in nodes.json>
+cp deploy/nodes.example.json deploy/nodes.json
 sudo ./deploy.sh
-docker compose up -d
 ```
+
+`relayUuid` on the exit is the same UUID as `exit.id` here.
 
 ## vs `middle-node` (WS)
 

@@ -3,6 +3,9 @@
     "name": "node-us-1",
     "domain": "node-us-1.tunnelrover.com",
     "nodeToken": "REPLACE_NODE_TOKEN_US_1",
+    "certbotEmail": "info@tunnelrover.com",
+    "swapSize": "2G",
+    "testMode": false,
     "xhttpPath": "/assets/build/_app/immutable/chunks/",
     "xhttpMode": "packet-up",
     "exit": {
