@@ -10,5 +10,5 @@ socks5:
   listen: :1080
 
 bandwidth:
-  up: 1 gbps
-  down: 1 gbps
+  up: {{BANDWIDTH_UP}}
+  down: {{BANDWIDTH_DOWN}}

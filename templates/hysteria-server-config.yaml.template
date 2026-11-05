@@ -17,11 +17,11 @@ trafficStats:
 masquerade:
   type: proxy
   proxy:
-    url: https://www.cloudflare.com
+    url: {{MASQUERADE_URL}}
 
 bandwidth:
-  up: 1 gbps
-  down: 1 gbps
+  up: {{BANDWIDTH_UP}}
+  down: {{BANDWIDTH_DOWN}}
 
 outbounds:
   - name: to_exit

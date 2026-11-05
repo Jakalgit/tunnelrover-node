@@ -2,6 +2,15 @@
   "name": "node-us-1",
   "domain": "node-us-1.tunnelrover.com",
   "nodeToken": "REPLACE_NODE_TOKEN",
+  "certbotEmail": "info@tunnelrover.com",
+  "swapSize": "2G",
+  "testMode": false,
+  "trafficStatsSecret": "",
+  "masqueradeUrl": "https://www.cloudflare.com",
+  "bandwidth": {
+    "up": "1 gbps",
+    "down": "1 gbps"
+  },
   "exit": {
     "address": "exit-nl-1.tunnelrover.com",
     "port": 443,

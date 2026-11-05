@@ -24,17 +24,11 @@ Nest API on `https://<domain>:8080`, Redis auth — same as branch `hysteria`.
 
 ```bash
 chmod +x deploy.sh
-sudo bash deploy.sh
+sudo ./deploy.sh
 ```
 
-`deploy/nodes.json` must be a **single JSON object**, not an array.  
-If you pass an array, it must contain exactly one element.
-
-Re-deploy configs only:
-
-```bash
-SKIP_BOOTSTRAP=1 SKIP_CERTBOT=1 sudo ./deploy.sh
-```
+`deploy/nodes.json` must be a **single JSON object**, not an array.
+Re-running `./deploy.sh` is safe. Files in `templates/` and the repo `docker-compose.yaml` are only read. Each run rebuilds `generated/` (including `generated/docker-compose.yaml`), keeps `trafficStatsSecret` in `nodes.json`, and skips certbot when `/etc/letsencrypt/live/<domain>` already exists.
 
 ## Generated files (gitignored)
 

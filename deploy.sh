@@ -1,10 +1,11 @@
 #!/bin/bash
-# Hysteria middle-node: one VPS = one relay node on :443 (UDP+TCP).
+# Hysteria middle-node. One VPS = one relay on :443.
 #
-# Stack: hysteria + hysteria-exit + redis + nest-app + nginx (:8080 API)
+#   cp deploy/nodes.example.json deploy/nodes.json
+#   sudo ./deploy.sh
 #
-# 1. Copy deploy/nodes.example.json → deploy/nodes.json (single object, not an array)
-# 2. Run on VPS: sudo ./deploy.sh
+# Safe to run again: templates are only read, generated files are rebuilt,
+# the traffic secret is reused, certbot runs only when the cert is missing.
 
 set -euo pipefail
 
@@ -12,89 +13,153 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 NODES_FILE="${NODES_FILE:-deploy/nodes.json}"
-SWAP_SIZE="${SWAP_SIZE:-2G}"
-CERTBOT_EMAIL="${CERTBOT_EMAIL:-info@tunnelrover.com}"
-
-TEMPLATE_NGINX="templates/node-single.conf.template"
-TEMPLATE_HYSTERIA_SERVER="templates/hysteria-server-config.yaml.template"
-TEMPLATE_HYSTERIA_EXIT="templates/hysteria-exit-client.yaml.template"
-
 GENERATED_DIR="generated"
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "jq is required. Install: apt install jq"
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Run as root: sudo ./deploy.sh" >&2
   exit 1
 fi
 
 if [[ ! -f "$NODES_FILE" ]]; then
-  echo "Missing $NODES_FILE — copy deploy/nodes.example.json and edit exit fields."
-  exit 1
-fi
-
-NODE_TYPE="$(jq -r 'type' "$NODES_FILE")"
-if [[ "$NODE_TYPE" == "array" ]]; then
-  NODE_COUNT="$(jq length "$NODES_FILE")"
-  if [[ "$NODE_COUNT" -ne 1 ]]; then
-    echo "Hysteria middle-node supports exactly one node per VPS."
-    echo "Use a single JSON object in deploy/nodes.json (not an array of $NODE_COUNT nodes)."
+  if [[ -f deploy/nodes.example.json ]]; then
+    cp deploy/nodes.example.json "$NODES_FILE"
+    echo "Created $NODES_FILE from example. Fill it and run again." >&2
     exit 1
   fi
-  NODES_FILE_TMP="$(mktemp)"
-  jq '.[0]' "$NODES_FILE" > "$NODES_FILE_TMP"
-  NODES_FILE="$NODES_FILE_TMP"
-  trap 'rm -f "$NODES_FILE_TMP"' EXIT
-elif [[ "$NODE_TYPE" != "object" ]]; then
-  echo "$NODES_FILE must be a JSON object with one node definition."
+  echo "Missing $NODES_FILE" >&2
   exit 1
 fi
 
-NAME="$(jq -r '.name' "$NODES_FILE")"
-DOMAIN="$(jq -r '.domain' "$NODES_FILE")"
-EXIT_ADDRESS="$(jq -r '.exit.address' "$NODES_FILE")"
-EXIT_PORT="$(jq -r '.exit.port // 443' "$NODES_FILE")"
-EXIT_AUTH="$(jq -r '.exit.auth' "$NODES_FILE")"
-EXIT_SNI="$(jq -r '.exit.sni // .exit.address' "$NODES_FILE")"
-NODE_TOKEN_VALUE="$(jq -r '.nodeToken // empty' "$NODES_FILE")"
-TRAFFIC_STATS_SECRET="$(openssl rand -hex 32)"
-
-if [[ -z "$NAME" || "$NAME" == "null" || -z "$DOMAIN" || "$DOMAIN" == "null" ]]; then
-  echo "name and domain are required in $NODES_FILE"
-  exit 1
+if ! command -v python3 >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y python3
 fi
 
-if [[ -z "$EXIT_ADDRESS" || "$EXIT_ADDRESS" == "null" || -z "$EXIT_AUTH" || "$EXIT_AUTH" == "null" ]]; then
-  echo "exit.address and exit.auth are required in $NODES_FILE"
-  exit 1
+eval "$(python3 - "$NODES_FILE" <<'PY'
+import json, shlex, sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    raw = json.load(f)
+
+if isinstance(raw, list):
+    if len(raw) != 1:
+        raise SystemExit("deploy/nodes.json must describe exactly one node")
+    cfg = raw[0]
+else:
+    cfg = raw
+
+def q(value):
+    return shlex.quote("" if value is None else str(value))
+
+exit_cfg = cfg.get("exit") or {}
+bandwidth = cfg.get("bandwidth") or {}
+name = cfg.get("name") or ""
+domain = cfg.get("domain") or ""
+token = cfg.get("nodeToken") or ""
+address = exit_cfg.get("address") or ""
+auth = exit_cfg.get("auth") or ""
+
+missing = [
+    label
+    for label, value in (
+        ("name", name),
+        ("domain", domain),
+        ("nodeToken", token),
+        ("exit.address", address),
+        ("exit.auth", auth),
+    )
+    if not value or value.startswith("REPLACE_")
+]
+if missing:
+    raise SystemExit("Fill in deploy/nodes.json: " + ", ".join(missing))
+
+print(f"NODE_NAME={q(name)}")
+print(f"DOMAIN={q(domain)}")
+print(f"NODE_TOKEN_VALUE={q(token)}")
+print(f"EXIT_ADDRESS={q(address)}")
+print(f"EXIT_PORT={q(exit_cfg.get('port') or 443)}")
+print(f"EXIT_AUTH={q(auth)}")
+print(f"EXIT_SNI={q(exit_cfg.get('sni') or address)}")
+print(f"CERTBOT_EMAIL={q(cfg.get('certbotEmail') or 'info@tunnelrover.com')}")
+print(f"SWAP_SIZE={q(cfg.get('swapSize') or '2G')}")
+print(f"TEST_MODE={q('true' if cfg.get('testMode') else 'false')}")
+print(f"TRAFFIC_STATS_SECRET={q(cfg.get('trafficStatsSecret') or '')}")
+print(f"MASQUERADE_URL={q(cfg.get('masqueradeUrl') or 'https://www.cloudflare.com')}")
+print(f"BANDWIDTH_UP={q(bandwidth.get('up') or '1 gbps')}")
+print(f"BANDWIDTH_DOWN={q(bandwidth.get('down') or '1 gbps')}")
+PY
+)"
+
+if [[ -z "$TRAFFIC_STATS_SECRET" && -f "$GENERATED_DIR/.env" ]]; then
+  TRAFFIC_STATS_SECRET="$(awk -F= '/^HYSTERIA_TRAFFIC_SECRET=/{print substr($0, index($0,"=")+1); exit}' "$GENERATED_DIR/.env" || true)"
 fi
 
-if [[ -z "$NODE_TOKEN_VALUE" || "$NODE_TOKEN_VALUE" == "null" ]]; then
-  NODE_TOKEN_VALUE="${NODE_TOKEN:-}"
+if [[ -z "$TRAFFIC_STATS_SECRET" ]]; then
+  TRAFFIC_STATS_SECRET="$(openssl rand -hex 32)"
 fi
 
-if [[ -z "$NODE_TOKEN_VALUE" ]]; then
-  echo "nodeToken is required in $NODES_FILE"
-  exit 1
-fi
+python3 - "$NODES_FILE" "$TRAFFIC_STATS_SECRET" <<'PY'
+import json, sys
 
-echo "==> Generating Hysteria middle-node: $NAME ($DOMAIN) → exit $EXIT_ADDRESS:$EXIT_PORT"
+path, secret = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as f:
+    raw = json.load(f)
+
+if isinstance(raw, list):
+    cfg = raw[0]
+else:
+    cfg = raw
+
+if cfg.get("trafficStatsSecret") == secret:
+    raise SystemExit(0)
+
+cfg["trafficStatsSecret"] = secret
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(raw, f, indent=2)
+    f.write("\n")
+PY
+
+render() {
+  python3 - "$1" "$2" <<'PY'
+import os, pathlib, sys
+
+src, dst = sys.argv[1], sys.argv[2]
+text = pathlib.Path(src).read_text()
+mapping = {
+    "NODE_NAME": os.environ["NODE_NAME"],
+    "DOMAIN": os.environ["DOMAIN"],
+    "TRAFFIC_STATS_SECRET": os.environ["TRAFFIC_STATS_SECRET"],
+    "MASQUERADE_URL": os.environ["MASQUERADE_URL"],
+    "BANDWIDTH_UP": os.environ["BANDWIDTH_UP"],
+    "BANDWIDTH_DOWN": os.environ["BANDWIDTH_DOWN"],
+    "EXIT_ADDRESS": os.environ["EXIT_ADDRESS"],
+    "EXIT_PORT": os.environ["EXIT_PORT"],
+    "EXIT_AUTH": os.environ["EXIT_AUTH"],
+    "EXIT_SNI": os.environ["EXIT_SNI"],
+    "ROOT": os.environ["ROOT"],
+}
+for key, value in mapping.items():
+    text = text.replace("{{" + key + "}}", value)
+if "{{" in text and "}}" in text:
+    raise SystemExit(f"Unresolved placeholder left in {dst}")
+path = pathlib.Path(dst)
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(text)
+PY
+}
+
+export NODE_NAME DOMAIN TRAFFIC_STATS_SECRET MASQUERADE_URL BANDWIDTH_UP BANDWIDTH_DOWN
+export EXIT_ADDRESS EXIT_PORT EXIT_AUTH EXIT_SNI
+export ROOT="$SCRIPT_DIR"
 
 rm -rf "$GENERATED_DIR"
 mkdir -p "$GENERATED_DIR/nginx"
 
-sed \
-  -e "s|{{DOMAIN}}|$DOMAIN|g" \
-  "$TEMPLATE_NGINX" > "$GENERATED_DIR/nginx/node.conf"
-
-sed \
-  -e "s|{{TRAFFIC_STATS_SECRET}}|$TRAFFIC_STATS_SECRET|g" \
-  "$TEMPLATE_HYSTERIA_SERVER" > "$GENERATED_DIR/hysteria-server-config.yaml"
-
-sed \
-  -e "s|{{EXIT_ADDRESS}}|$EXIT_ADDRESS|g" \
-  -e "s|{{EXIT_PORT}}|$EXIT_PORT|g" \
-  -e "s|{{EXIT_AUTH}}|$EXIT_AUTH|g" \
-  -e "s|{{EXIT_SNI}}|$EXIT_SNI|g" \
-  "$TEMPLATE_HYSTERIA_EXIT" > "$GENERATED_DIR/hysteria-exit-client.yaml"
+render templates/node-single.conf.template "$GENERATED_DIR/nginx/node.conf"
+render templates/hysteria-server-config.yaml.template "$GENERATED_DIR/hysteria-server-config.yaml"
+render templates/hysteria-exit-client.yaml.template "$GENERATED_DIR/hysteria-exit-client.yaml"
+render templates/docker-compose.yaml.template "$GENERATED_DIR/docker-compose.yaml"
 
 cat > "$GENERATED_DIR/.env" <<EOF
 NODE_TOKEN=${NODE_TOKEN_VALUE}
@@ -103,72 +168,68 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 HYSTERIA_HOST=hysteria
 HYSTERIA_TRAFFIC_PORT=9999
-TEST_MODE=false
+TEST_MODE=${TEST_MODE}
 EOF
 
-if [[ "${SKIP_BOOTSTRAP:-0}" != "1" ]]; then
+install_docker() {
   if ! command -v docker >/dev/null 2>&1; then
     curl -sSL https://get.docker.com/ | CHANNEL=stable sh
-    systemctl enable --now docker
+  fi
+  systemctl enable --now docker
+
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y certbot iptables-persistent nano
   fi
 
-  apt-get update -y
-  apt-get install -y certbot jq docker-compose-plugin iptables-persistent nano
-
-  if [[ ! -f "/swapfile" ]]; then
-    fallocate -l "$SWAP_SIZE" /swapfile
-    chmod 600 /swapfile
-    mkswap /swapfile
-    swapon /swapfile
-    echo "/swapfile none swap sw 0 0" >> /etc/fstab
-  fi
-fi
-
-if [[ "${SKIP_CERTBOT:-0}" != "1" ]]; then
-  echo "==> Obtaining certificate for: $DOMAIN"
-  certbot certonly \
-    --standalone \
-    -d "$DOMAIN" \
-    --non-interactive \
-    --agree-tos \
-    --email "$CERTBOT_EMAIL" \
-    --no-eff-email
-fi
-
-CERT_LIVE_NAME="$DOMAIN"
-if [[ ! -f "/etc/letsencrypt/live/$CERT_LIVE_NAME/fullchain.pem" ]]; then
-  CERT_LIVE_NAME="$(basename "$(ls -d /etc/letsencrypt/live/*/ 2>/dev/null | head -1)")"
-fi
-
-mkdir -p ./nginx-certs
-cp "/etc/letsencrypt/live/$CERT_LIVE_NAME/fullchain.pem" ./nginx-certs/fullchain.pem
-cp "/etc/letsencrypt/live/$CERT_LIVE_NAME/privkey.pem" ./nginx-certs/privkey.pem
-chmod 644 ./nginx-certs/*.pem
-
-assert_mount_file() {
-  local path="$1"
-  if [[ -d "$path" ]]; then
-    echo "ERROR: '$path' is a directory, but Docker needs a file."
-    exit 1
-  fi
-  if [[ ! -f "$path" ]]; then
-    echo "ERROR: required file missing: $path"
-    exit 1
+  if ! docker compose version >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y docker-compose-plugin
   fi
 }
 
-echo "==> Preflight mount paths..."
-assert_mount_file nginx.conf
-assert_mount_file index.html
-assert_mount_file promtail-config.yaml
-assert_mount_file "$GENERATED_DIR/hysteria-server-config.yaml"
-assert_mount_file "$GENERATED_DIR/hysteria-exit-client.yaml"
-assert_mount_file "$GENERATED_DIR/nginx/node.conf"
-assert_mount_file "$GENERATED_DIR/.env"
+ensure_swap() {
+  if [[ -f /swapfile ]]; then
+    return
+  fi
+  fallocate -l "$SWAP_SIZE" /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+}
 
-echo "==> Starting stack..."
-docker compose up -d --build
+compose() {
+  docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" "$@"
+}
 
-echo "Done. Hysteria middle-node ($NAME):"
+issue_certs() {
+  local live_dir="/etc/letsencrypt/live/${DOMAIN}"
+
+  if [[ ! -f "${live_dir}/fullchain.pem" ]]; then
+    compose down || true
+    certbot certonly \
+      --standalone \
+      -d "$DOMAIN" \
+      --non-interactive \
+      --agree-tos \
+      --email "$CERTBOT_EMAIL" \
+      --no-eff-email
+  fi
+
+  mkdir -p ./nginx-certs
+  cp "${live_dir}/fullchain.pem" ./nginx-certs/fullchain.pem
+  cp "${live_dir}/privkey.pem" ./nginx-certs/privkey.pem
+  chmod 644 ./nginx-certs/*.pem
+}
+
+install_docker
+ensure_swap
+issue_certs
+
+compose up -d --build
+
+echo
+echo "Done. Hysteria middle-node ($NODE_NAME):"
 echo "  hysteria2://<USER_UUID>@$DOMAIN:443?sni=$DOMAIN"
 echo "  https://$DOMAIN:8080  → nest-app control API"
