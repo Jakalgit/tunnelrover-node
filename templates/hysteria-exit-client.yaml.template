@@ -1,13 +1,15 @@
-server: {{EXIT_ADDRESS}}:{{EXIT_PORT}}
+server: "{{EXIT_ADDRESS}}:{{EXIT_PORT}}"
 
-auth: {{EXIT_AUTH}}
+auth: "{{EXIT_AUTH}}"
 
 tls:
-  sni: {{EXIT_SNI}}
+  sni: "{{EXIT_SNI}}"
   insecure: false
 
+lazy: true
+
 socks5:
-  listen: :1080
+  listen: 0.0.0.0:1080
 
 bandwidth:
   up: {{BANDWIDTH_UP}}

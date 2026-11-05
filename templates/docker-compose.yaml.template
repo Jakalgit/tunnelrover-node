@@ -31,12 +31,15 @@ services:
   hysteria-exit:
     image: tobyxdd/hysteria:latest
     container_name: hysteria-exit-{{NODE_NAME}}
+    hostname: hysteria-exit-{{NODE_NAME}}
     restart: unless-stopped
     volumes:
       - {{ROOT}}/generated/hysteria-exit-client.yaml:/etc/hysteria/config.yaml:ro
     command: client -c /etc/hysteria/config.yaml
     networks:
-      - instance-network
+      instance-network:
+        aliases:
+          - hysteria-exit-{{NODE_NAME}}
 
   nest-app:
     container_name: nest-app-{{NODE_NAME}}

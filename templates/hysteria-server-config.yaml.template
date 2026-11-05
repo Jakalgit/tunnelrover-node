@@ -27,4 +27,4 @@ outbounds:
   - name: to_exit
     type: socks5
     socks5:
-      addr: hysteria-exit:1080
+      addr: hysteria-exit-{{NODE_NAME}}:1080
