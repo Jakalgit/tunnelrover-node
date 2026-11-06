@@ -1,5 +1,5 @@
-# Reference copy. deploy.sh renders templates/docker-compose.yaml.template
-# into generated/docker-compose.yaml and does not modify this file.
+# Reference only. deploy.sh writes generated/docker-compose.yaml from deploy/nodes.json.
+# Do not run this file: it is not kept in sync with the node list.
 version: "3.9"
 
 networks:

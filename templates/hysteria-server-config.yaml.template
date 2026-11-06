@@ -7,7 +7,7 @@ tls:
 auth:
   type: http
   http:
-    url: http://nest-app:5000/internal/hysteria/auth
+    url: http://nest-app-{{NODE_NAME}}:5000/internal/hysteria/auth
     insecure: true
 
 trafficStats:
