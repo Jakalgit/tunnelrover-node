@@ -1,10 +1,10 @@
 # Middle-node architecture (branch `middle-node-hysteria`)
 
-**One VPS = one Hysteria middle node** on port `443` (UDP+TCP).  
+**One VPS = one Hysteria middle node.** Clients connect to `listenPort` (default `443`, UDP+TCP). The control API is published on `controlPort` (default `8080`).  
 Unlike xray middle-node, Hysteria cannot share one port across several logical nodes.
 
 ```
-Client ──Hysteria2 :443──► hysteria (middle)
+Client ──Hysteria2 listenPort──► hysteria (middle)
                                │ ACL → SOCKS5
                                ▼
                          hysteria-exit (client)
@@ -13,12 +13,12 @@ Client ──Hysteria2 :443──► hysteria (middle)
                          exit Hysteria server
 ```
 
-Nest API on `https://<domain>:8080`, Redis auth — same as branch `hysteria`.
+Nest API on `https://<domain>:<controlPort>`. Default `controlPort` is `8080`.
 
 ## Deploy
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
-2. Fill in **one** node object (`name`, `domain`, `nodeToken`, `exit`).
+2. Fill in **one** node object (`name`, `domain`, `nodeToken`, `exit`). `listenPort` is the client port, `controlPort` is the nest API port. Both can be omitted: `443` and `8080`.
 3. On the **exit** node, add relay UUID from `exit.auth` via `POST /user` (one-time).
 4. On VPS:
 
@@ -34,7 +34,7 @@ Re-running `./deploy.sh` is safe. Files in `templates/` and the repo `docker-com
 
 | Path | Purpose |
 |------|---------|
-| `generated/nginx/node.conf` | nginx `:8080` API |
+| `generated/nginx/node.conf` | nginx control API on `controlPort` |
 | `generated/hysteria-server-config.yaml` | public Hysteria server |
 | `generated/hysteria-exit-client.yaml` | relay client → exit |
 | `generated/.env` | Nest + traffic stats secret |
@@ -53,12 +53,12 @@ All services are in `docker-compose.yaml` (no second compose file).
 |-------|--------|
 | `connection` | `hysteria` |
 | `host` | `domain` from nodes.json |
-| `tcpPort` | `443` |
+| `tcpPort` | `listenPort` from nodes.json |
 | `pathServerName` | same as `domain` (SNI) |
 
 Client link:
 
-`hysteria2://<USER_UUID>@node-us-1.tunnelrover.com:443?sni=node-us-1.tunnelrover.com`
+`hysteria2://<USER_UUID>@node-us-1.tunnelrover.com:<listenPort>?sni=node-us-1.tunnelrover.com`
 
 ## vs other branches
 

@@ -11,7 +11,7 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "8080:8080"
+      - "{{CONTROL_PORT}}:{{CONTROL_PORT}}"
     volumes:
       - {{ROOT}}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - {{ROOT}}/generated/nginx:/etc/nginx/conf.d/nodes:ro
@@ -59,8 +59,8 @@ services:
     container_name: hysteria-{{NODE_NAME}}
     restart: unless-stopped
     ports:
-      - "443:443/udp"
-      - "443:443/tcp"
+      - "{{LISTEN_PORT}}:{{LISTEN_PORT}}/udp"
+      - "{{LISTEN_PORT}}:{{LISTEN_PORT}}/tcp"
     volumes:
       - {{ROOT}}/generated/hysteria-server-config.yaml:/etc/hysteria/config.yaml:ro
       - {{ROOT}}/nginx-certs:/etc/hysteria/certs:ro

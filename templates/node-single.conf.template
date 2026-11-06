@@ -1,7 +1,7 @@
 # Generated — do not edit by hand.
 
 server {
-    listen 8080 ssl;
+    listen {{CONTROL_PORT}} ssl;
     server_name {{DOMAIN}};
 
     client_max_body_size 0;

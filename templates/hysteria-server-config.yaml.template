@@ -1,4 +1,4 @@
-listen: :443
+listen: :{{LISTEN_PORT}}
 
 tls:
   cert: /etc/hysteria/certs/fullchain.pem

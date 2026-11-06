@@ -54,11 +54,26 @@ def q(value):
 
 exit_cfg = cfg.get("exit") or {}
 bandwidth = cfg.get("bandwidth") or {}
+def port_num(value, default, label):
+    if value is None or value == "":
+        value = default
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise SystemExit(f"{label} must be a TCP port")
+    if not 1 <= number <= 65535:
+        raise SystemExit(f"{label} must be between 1 and 65535")
+    return number
+
 name = cfg.get("name") or ""
 domain = cfg.get("domain") or ""
 token = cfg.get("nodeToken") or ""
+listen_port = port_num(cfg.get("listenPort"), 443, "listenPort")
+control_port = port_num(cfg.get("controlPort"), 8080, "controlPort")
 address = exit_cfg.get("address") or ""
 auth = exit_cfg.get("auth") or ""
+if listen_port == control_port or listen_port == 80 or control_port == 80:
+    raise SystemExit("listenPort and controlPort must be different, and neither can be 80")
 
 missing = [
     label
@@ -76,6 +91,8 @@ if missing:
 
 print(f"NODE_NAME={q(name)}")
 print(f"DOMAIN={q(domain)}")
+print(f"LISTEN_PORT={listen_port}")
+print(f"CONTROL_PORT={control_port}")
 print(f"NODE_TOKEN_VALUE={q(token)}")
 print(f"EXIT_ADDRESS={q(address)}")
 print(f"EXIT_PORT={q(exit_cfg.get('port') or 443)}")
@@ -129,6 +146,8 @@ text = pathlib.Path(src).read_text()
 mapping = {
     "NODE_NAME": os.environ["NODE_NAME"],
     "DOMAIN": os.environ["DOMAIN"],
+    "LISTEN_PORT": os.environ["LISTEN_PORT"],
+    "CONTROL_PORT": os.environ["CONTROL_PORT"],
     "TRAFFIC_STATS_SECRET": os.environ["TRAFFIC_STATS_SECRET"],
     "MASQUERADE_URL": os.environ["MASQUERADE_URL"],
     "BANDWIDTH_UP": os.environ["BANDWIDTH_UP"],
@@ -149,7 +168,7 @@ path.write_text(text)
 PY
 }
 
-export NODE_NAME DOMAIN TRAFFIC_STATS_SECRET MASQUERADE_URL BANDWIDTH_UP BANDWIDTH_DOWN
+export NODE_NAME DOMAIN LISTEN_PORT CONTROL_PORT TRAFFIC_STATS_SECRET MASQUERADE_URL BANDWIDTH_UP BANDWIDTH_DOWN
 export EXIT_ADDRESS EXIT_PORT EXIT_AUTH EXIT_SNI
 export ROOT="$SCRIPT_DIR"
 
@@ -231,5 +250,5 @@ compose up -d --build
 
 echo
 echo "Done. Hysteria middle-node ($NODE_NAME):"
-echo "  hysteria2://<USER_UUID>@$DOMAIN:443?sni=$DOMAIN"
-echo "  https://$DOMAIN:8080  → nest-app control API"
+echo "  hysteria2://<USER_UUID>@$DOMAIN:$LISTEN_PORT?sni=$DOMAIN"
+echo "  https://$DOMAIN:$CONTROL_PORT  → nest-app control API"

@@ -1,6 +1,8 @@
 {
   "name": "node-us-1",
   "domain": "node-us-1.tunnelrover.com",
+  "listenPort": 443,
+  "controlPort": 8080,
   "nodeToken": "REPLACE_NODE_TOKEN",
   "certbotEmail": "info@tunnelrover.com",
   "swapSize": "2G",
