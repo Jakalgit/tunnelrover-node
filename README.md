@@ -1,15 +1,15 @@
-# Middle-node architecture (branch `middle-node-hysteria`)
+# Middle-node architecture (branch `middle-node-hysteria-xhttp`)
 
 **One VPS can run several Hysteria middle nodes.** Each node has its own `listenPort` (client UDP+TCP) and `controlPort` (nest API). Those ports must all be different, and none of them can be `80` (certbot). Hysteria cannot put two nodes on the same listen port.
 
 ```
 Client ──Hysteria2 listenPort──► hysteria (middle)
-                               │ ACL → SOCKS5
+                               │ SOCKS5
                                ▼
-                         hysteria-exit (client)
+                         xray-exit (VLESS XHTTP)
                                │
                                ▼
-                         exit Hysteria server
+                         exit Xray XHTTP
 ```
 
 Nest API on `https://<domain>:<controlPort>`. Default `controlPort` is `8080`.
@@ -18,7 +18,7 @@ Nest API on `https://<domain>:<controlPort>`. Default `controlPort` is `8080`.
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
 2. Fill in the array. Each object needs `name`, `domain`, `nodeToken`, `listenPort`, `controlPort`, and `exit`. A single object is still accepted. If a port is omitted, the defaults are `443` and `8080`, which only works for one node.
-3. On each **exit** node, add the relay UUID from that entry's `exit.auth` via `POST /user` (one-time).
+3. On the **exit** XHTTP node, the VLESS client id must be this entry's `exit.id`. `exit.path` and `exit.mode` must match the exit (`packet-up` by default). `exit.sni` is the name on the exit certificate.
 4. On VPS:
 
 ```bash
@@ -61,7 +61,7 @@ Client link:
 
 | | `hysteria` | `middle-node` (xray) | `middle-node-hysteria` |
 |--|------------|----------------------|-------------------------|
-| Role | exit | xray relay → REALITY | hysteria relay → hysteria exit |
+| Role | exit | xray relay → REALITY | hysteria to the client, XHTTP to the exit |
 | Nodes per VPS | 1 | N (nginx SNI) | **N, each with its own ports** |
 | Public port | 443 | 443 via nginx `/ws` | `listenPort` UDP+TCP per node |
 

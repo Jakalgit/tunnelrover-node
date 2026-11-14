@@ -1,5 +1,5 @@
 #!/bin/bash
-# Several Hysteria middle nodes on one VPS.
+# Several Hysteria middle nodes on one VPS. The exit hop is VLESS XHTTP.
 # Each node has its own listenPort (client UDP+TCP) and controlPort (nest API).
 #
 #   cp deploy/nodes.example.json deploy/nodes.json
@@ -99,7 +99,11 @@ for index, node in enumerate(nodes):
     token = need(node.get("nodeToken"), f"{name}.nodeToken")
     exit_cfg = node.get("exit") or {}
     address = need(exit_cfg.get("address"), f"{name}.exit.address")
-    auth = need(exit_cfg.get("auth"), f"{name}.exit.auth")
+    exit_id = need(exit_cfg.get("id"), f"{name}.exit.id")
+    exit_path = need(exit_cfg.get("path"), f"{name}.exit.path")
+    if not exit_path.startswith("/"):
+        raise SystemExit(f"{name}.exit.path must start with /")
+    exit_mode = str(exit_cfg.get("mode") or "packet-up")
     listen_port = port_num(node.get("listenPort"), 443, f"{name}.listenPort")
     control_port = port_num(node.get("controlPort"), 8080, f"{name}.controlPort")
     for field, number in (("listenPort", listen_port), ("controlPort", control_port)):
@@ -121,8 +125,10 @@ for index, node in enumerate(nodes):
         "control_port": str(control_port),
         "exit_address": address,
         "exit_port": str(port_num(exit_cfg.get("port"), 443, f"{name}.exit.port")),
-        "exit_auth": auth,
+        "exit_id": exit_id,
         "exit_sni": str(exit_cfg.get("sni") or address),
+        "exit_path": exit_path,
+        "exit_mode": exit_mode,
         "secret": secret,
         "masquerade": str(node.get("masqueradeUrl") or "https://www.cloudflare.com"),
         "up": str(bandwidth.get("up") or "1 gbps"),
@@ -151,6 +157,8 @@ def render(template, mapping, dest):
     path = generated / dest
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
+    if dest.endswith(".json"):
+        json.loads(text)
 
 lines = [
     "networks:",
@@ -203,13 +211,15 @@ for node in prepared:
         "BANDWIDTH_DOWN": node["down"],
         "EXIT_ADDRESS": node["exit_address"],
         "EXIT_PORT": node["exit_port"],
-        "EXIT_AUTH": node["exit_auth"],
+        "EXIT_ID": node["exit_id"],
         "EXIT_SNI": node["exit_sni"],
+        "EXIT_XHTTP_PATH": node["exit_path"],
+        "EXIT_XHTTP_MODE": node["exit_mode"],
         "ROOT": str(root),
     }
     render("node-single.conf.template", mapping, f"nginx/{name}.conf")
     render("hysteria-server-config.yaml.template", mapping, f"nodes/{name}/hysteria-server-config.yaml")
-    render("hysteria-exit-client.yaml.template", mapping, f"nodes/{name}/hysteria-exit-client.yaml")
+    render("xray-exit-config.json.template", mapping, f"nodes/{name}/xray-exit-config.json")
     (generated / "nodes" / name / ".env").write_text(
         "\n".join([
             f"NODE_TOKEN={node['token']}",
@@ -246,18 +256,18 @@ for node in prepared:
         "    depends_on:",
         f"      - redis-{name}",
         "",
-        f"  hysteria-exit-{name}:",
-        "    image: tobyxdd/hysteria:latest",
-        f"    container_name: hysteria-exit-{name}",
-        f"    hostname: hysteria-exit-{name}",
+        f"  xray-exit-{name}:",
+        "    image: teddysun/xray:latest",
+        f"    container_name: xray-exit-{name}",
+        f"    hostname: xray-exit-{name}",
         "    restart: unless-stopped",
         "    volumes:",
-        f"      - {root}/generated/nodes/{name}/hysteria-exit-client.yaml:/etc/hysteria/config.yaml:ro",
-        "    command: client -c /etc/hysteria/config.yaml",
+        f"      - {root}/generated/nodes/{name}/xray-exit-config.json:/etc/xray/config.json:ro",
+        "    command: xray run -config /etc/xray/config.json",
         "    networks:",
         "      instance-network:",
         "        aliases:",
-        f"          - hysteria-exit-{name}",
+        f"          - xray-exit-{name}",
         "",
         f"  hysteria-{name}:",
         "    image: tobyxdd/hysteria:latest",
@@ -274,7 +284,7 @@ for node in prepared:
         "      - instance-network",
         "    depends_on:",
         f"      - nest-app-{name}",
-        f"      - hysteria-exit-{name}",
+        f"      - xray-exit-{name}",
     ]
 
 (generated / "docker-compose.yaml").write_text("\n".join(lines) + "\n")
