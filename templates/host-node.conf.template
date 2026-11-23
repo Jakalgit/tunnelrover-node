@@ -1,20 +1,17 @@
-# Generated — do not edit by hand.
-
+# One file per node, included from /etc/nginx/conf.d/.
 server {
-    listen {{CONTROL_PORT}} ssl;
+    listen 443 ssl;
     server_name {{DOMAIN}};
+
+    ssl_certificate {{CERT_DIR}}/fullchain.pem;
+    ssl_certificate_key {{CERT_DIR}}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     client_max_body_size 0;
 
-    ssl_certificate /etc/nginx/certs/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certs/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
     location / {
-        proxy_pass http://nest-app:5000;
+        proxy_pass http://127.0.0.1:{{CONTROL_PORT}};
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

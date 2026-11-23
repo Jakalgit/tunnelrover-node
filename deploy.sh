@@ -1,10 +1,12 @@
 #!/bin/bash
 # One Hysteria middle node per folder. The exit hop is VLESS XHTTP.
-# listenPort and controlPort are required: another copy of this folder on the
-# same host must use different ports. docker compose down stays inside this folder.
+# Host nginx (systemd) owns TCP 80 and TCP 443. Each folder adds one file
+# under /etc/nginx/conf.d/ and publishes Nest only on 127.0.0.1:controlPort.
+# Hysteria listens on listenPort/udp. Another copy of this folder needs other ports.
 #
 #   cp deploy/nodes.example.json deploy/nodes.json
 #   sudo ./deploy.sh
+#   sudo ./deploy.sh down
 #
 # Safe to run again: templates are only read, generated files are rebuilt,
 # traffic secrets stay in nodes.json, certbot runs only when a domain is missing.
@@ -22,6 +24,45 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y python3
+fi
+
+folder_slug() {
+  python3 - "$SCRIPT_DIR" <<'PY'
+import pathlib, re, sys
+slug = re.sub(r"[^a-z0-9_-]+", "-", pathlib.Path(sys.argv[1]).name.lower()).strip("-")
+if not slug:
+    raise SystemExit("Folder name cannot be used as a compose project name")
+print(slug)
+PY
+}
+
+if [[ "${1:-}" == "down" ]]; then
+  PROJECT_SLUG="$(folder_slug)"
+  if [[ -f "$GENERATED_DIR/docker-compose.yaml" ]]; then
+    docker compose \
+      --project-name "$PROJECT_SLUG" \
+      --project-directory "$SCRIPT_DIR" \
+      -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" \
+      down --rmi local --volumes --remove-orphans
+  fi
+  rm -f "/etc/nginx/conf.d/tunnelrover-${PROJECT_SLUG}.conf" \
+    "/etc/tunnelrover/nodes/${PROJECT_SLUG}.env"
+  if command -v nginx >/dev/null 2>&1; then
+    nginx -t
+    systemctl reload nginx || true
+  fi
+  echo "Removed project ${PROJECT_SLUG}, its containers, and its nginx site."
+  exit 0
+fi
+
+if [[ -n "${1:-}" ]]; then
+  echo "Usage: sudo ./deploy.sh [down]" >&2
+  exit 1
+fi
+
 if [[ ! -f "$NODES_FILE" ]]; then
   if [[ -f deploy/nodes.example.json ]]; then
     cp deploy/nodes.example.json "$NODES_FILE"
@@ -30,11 +71,6 @@ if [[ ! -f "$NODES_FILE" ]]; then
   fi
   echo "Missing $NODES_FILE" >&2
   exit 1
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  apt-get update -y
-  apt-get install -y python3
 fi
 
 python3 - "$NODES_FILE" "$SCRIPT_DIR" <<'PY' || exit 1
@@ -100,11 +136,12 @@ if not exit_path.startswith("/"):
 exit_mode = str(exit_cfg.get("mode") or "packet-up")
 listen_port = port_num(node.get("listenPort"), "listenPort")
 control_port = port_num(node.get("controlPort"), "controlPort")
-if listen_port == control_port or listen_port == 80 or control_port == 80:
-    raise SystemExit("listenPort, controlPort and port 80 must be three different ports")
-bind_http = node.get("bindHttp", True)
-if isinstance(bind_http, str):
-    bind_http = bind_http.strip().lower() not in ("0", "false", "no")
+if control_port in (80, 443):
+    raise SystemExit(
+        "controlPort is only opened on 127.0.0.1. TCP 80 and 443 belong to the host nginx."
+    )
+if listen_port == control_port or listen_port == 80:
+    raise SystemExit("listenPort must differ from controlPort and from port 80.")
 secrets_changed = False
 secret = str(node.get("trafficStatsSecret") or "")
 if not secret:
@@ -121,7 +158,6 @@ node_cfg = {
     "token": token,
     "listen_port": str(listen_port),
     "control_port": str(control_port),
-    "bind_http": bind_http,
     "exit_address": address,
     "exit_port": str(port_num(exit_port_value, "exit.port")),
     "exit_id": exit_id,
@@ -144,7 +180,6 @@ if secrets_changed:
 
 if generated.exists():
     shutil.rmtree(generated)
-(generated / "nginx").mkdir(parents=True)
 (generated / "nodes").mkdir(parents=True)
 
 def render(template, mapping, dest):
@@ -174,9 +209,10 @@ mapping = {
     "EXIT_SNI": node["exit_sni"],
     "EXIT_XHTTP_PATH": node["exit_path"],
     "EXIT_XHTTP_MODE": node["exit_mode"],
+    "CERT_DIR": f"/etc/letsencrypt/live/{node['domain']}",
     "ROOT": str(root),
 }
-render("node-single.conf.template", mapping, f"nginx/{node['name']}.conf")
+render("host-node.conf.template", mapping, "host-node.conf")
 render("hysteria-server-config.yaml.template", mapping, f"nodes/{node['name']}/hysteria-server-config.yaml")
 render("xray-exit-config.json.template", mapping, f"nodes/{node['name']}/xray-exit-config.json")
 (generated / "nodes" / node["name"] / ".env").write_text(
@@ -192,29 +228,11 @@ render("xray-exit-config.json.template", mapping, f"nodes/{node['name']}/xray-ex
     ])
 )
 
-ports = [f'      - "{node["control_port"]}:{node["control_port"]}"']
-if node["bind_http"]:
-    ports.insert(0, '      - "80:80"')
-
 lines = [
     "networks:",
     "  instance-network:",
     "",
     "services:",
-    "  nginx:",
-    "    image: nginx:alpine",
-    f"    container_name: nginx-{slug}",
-    "    restart: always",
-    "    ports:",
-    *ports,
-    "    volumes:",
-    f"      - {root}/nginx.conf:/etc/nginx/conf.d/default.conf:ro",
-    f"      - {root}/generated/nginx:/etc/nginx/conf.d/nodes:ro",
-    f"      - {root}/nginx-certs:/etc/nginx/certs:ro",
-    f"      - {root}/index.html:/etc/nginx/html/index.html:ro",
-    "    networks:",
-    "      - instance-network",
-    "",
     "  promtail:",
     "    image: grafana/promtail:latest",
     f"    container_name: promtail-{slug}",
@@ -242,6 +260,8 @@ lines = [
     "    build:",
     f"      context: {root}",
     "      dockerfile: Dockerfile.nestjs",
+    "    ports:",
+    f'      - "127.0.0.1:{node["control_port"]}:5000"',
     "    env_file:",
     f"      - {root}/generated/nodes/{node['name']}/.env",
     "    networks:",
@@ -266,10 +286,9 @@ lines = [
     "    restart: unless-stopped",
     "    ports:",
     f'      - "{node["listen_port"]}:{node["listen_port"]}/udp"',
-    f'      - "{node["listen_port"]}:{node["listen_port"]}/tcp"',
     "    volumes:",
     f"      - {root}/generated/nodes/{node['name']}/hysteria-server-config.yaml:/etc/hysteria/config.yaml:ro",
-    f"      - {root}/nginx-certs:/etc/hysteria/certs:ro",
+    "      - /etc/letsencrypt:/etc/letsencrypt:ro",
     "    command: server -c /etc/hysteria/config.yaml",
     "    networks:",
     "      - instance-network",
@@ -285,6 +304,10 @@ lines = [
 )
 (generated / "deploy.env").write_text(
     "\n".join([
+        f"NODE_NAME={shlex.quote(node['name'])}",
+        f"DOMAIN={shlex.quote(node['domain'])}",
+        f"LISTEN_PORT={shlex.quote(node['listen_port'])}",
+        f"CONTROL_PORT={shlex.quote(node['control_port'])}",
         f"SWAP_SIZE={shlex.quote(node['swap'])}",
         f"CERTBOT_EMAIL={shlex.quote(node['email'])}",
         f"PROJECT_SLUG={shlex.quote(slug)}",
@@ -333,6 +356,70 @@ install_docker() {
     apt-get update -y
     apt-get install -y docker-compose-plugin
   fi
+}
+
+# The previous per-folder nginx published TCP 80, and Hysteria published listenPort/tcp.
+# Host nginx needs both 80 and 443. Remove only this folder's containers that hold them.
+release_host_nginx_ports() {
+  local port id project name
+  docker rm -f "nginx-${PROJECT_SLUG}" >/dev/null 2>&1 || true
+  if [[ "$LISTEN_PORT" == "443" ]]; then
+    docker rm -f "hysteria-${PROJECT_SLUG}" >/dev/null 2>&1 || true
+  fi
+  for port in 80 443; do
+    for id in $(docker ps -q --filter "publish=${port}" 2>/dev/null || true); do
+      project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null || true)"
+      name="$(docker inspect -f '{{.Name}}' "$id")"
+      if [[ "$project" == "$PROJECT_SLUG" ]]; then
+        docker rm -f "$id" >/dev/null
+      else
+        echo "TCP ${port} is used by container ${name}. Stop it before the shared nginx can listen." >&2
+        exit 1
+      fi
+    done
+  done
+}
+
+ensure_confd_include() {
+  python3 - <<'PY'
+from pathlib import Path
+path = Path("/etc/nginx/nginx.conf")
+text = path.read_text()
+needle = "include /etc/nginx/conf.d/*.conf;"
+if needle in text:
+    raise SystemExit(0)
+http_at = text.find("http {")
+if http_at < 0:
+    http_at = text.find("http{")
+if http_at < 0:
+    raise SystemExit("Add 'include /etc/nginx/conf.d/*.conf;' inside the http block of /etc/nginx/nginx.conf")
+brace = text.find("{", http_at)
+text = text[: brace + 1] + "\n    include /etc/nginx/conf.d/*.conf;\n" + text[brace + 1 :]
+path.write_text(text)
+PY
+}
+
+reload_nginx() {
+  nginx -t
+  systemctl enable nginx >/dev/null
+  systemctl reload nginx || systemctl restart nginx
+}
+
+ensure_host_nginx() {
+  if ! command -v nginx >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y nginx
+  fi
+  mkdir -p /etc/nginx/conf.d /var/www/certbot /var/www/tunnelrover /etc/letsencrypt/renewal-hooks/deploy /etc/tunnelrover/nodes
+  if [[ -e /etc/nginx/sites-enabled/default ]]; then
+    rm -f /etc/nginx/sites-enabled/default
+    echo "Removed /etc/nginx/sites-enabled/default so it does not bind port 80."
+  fi
+  ensure_confd_include
+  install -m 644 "$SCRIPT_DIR/templates/host-http.conf" /etc/nginx/conf.d/00-tunnelrover-http.conf
+  install -m 644 "$SCRIPT_DIR/index.html" /var/www/tunnelrover/index.html
+  install -m 755 "$SCRIPT_DIR/templates/certbot-deploy-hook.sh" /etc/letsencrypt/renewal-hooks/deploy/tunnelrover.sh
+  reload_nginx
 }
 
 ensure_swap() {
@@ -384,37 +471,14 @@ find_covering_cert() {
   return 1
 }
 
-find_partial_cert() {
-  local dir domain text
-  [[ -d /etc/letsencrypt/live ]] || return 1
-  for dir in /etc/letsencrypt/live/*/; do
-    [[ -f "${dir}fullchain.pem" ]] || continue
-    text="$(openssl x509 -in "${dir}fullchain.pem" -noout -ext subjectAltName 2>/dev/null || true)"
-    for domain in "${CERT_DOMAINS[@]}"; do
-      if domain_in_cert "$text" "$domain"; then
-        printf '%s' "${dir%/}"
-        return 0
-      fi
-    done
-  done
-  return 1
-}
-
 issue_certs() {
-  local live_dir="" partial="" domain
-  local -a certbot_args
+  local live_dir=""
   if live_dir="$(find_covering_cert)"; then
     :
   else
-    compose down || true
-    certbot_args=(certonly --standalone)
-    if partial="$(find_partial_cert)"; then
-      certbot_args+=(--cert-name "$(basename "$partial")" --expand)
-    fi
-    for domain in "${CERT_DOMAINS[@]}"; do
-      certbot_args+=(-d "$domain")
-    done
-    certbot "${certbot_args[@]}" \
+    certbot certonly --webroot -w /var/www/certbot \
+      --cert-name "$DOMAIN" \
+      -d "$DOMAIN" \
       --non-interactive \
       --agree-tos \
       --email "$CERTBOT_EMAIL" \
@@ -423,21 +487,46 @@ issue_certs() {
   fi
 
   if [[ -z "$live_dir" || ! -f "${live_dir}/fullchain.pem" ]]; then
-    echo "Certificate was not issued for: ${CERT_DOMAINS[*]}" >&2
+    echo "Certificate was not issued for: $DOMAIN" >&2
     exit 1
   fi
+  CERT_LIVE_DIR="$live_dir"
+}
 
-  mkdir -p ./nginx-certs
-  cp "${live_dir}/fullchain.pem" ./nginx-certs/fullchain.pem
-  cp "${live_dir}/privkey.pem" ./nginx-certs/privkey.pem
-  chmod 644 ./nginx-certs/*.pem
+# An older certificate may live under a different directory name than the domain.
+align_cert_paths() {
+  python3 - "$DOMAIN" "$CERT_LIVE_DIR" "$SCRIPT_DIR/$GENERATED_DIR" <<'PY'
+import pathlib, sys
+domain, live, generated = sys.argv[1:]
+expected = f"/etc/letsencrypt/live/{domain}"
+live = live.rstrip("/")
+if live == expected:
+    raise SystemExit(0)
+root = pathlib.Path(generated)
+files = [root / "host-node.conf", *root.glob("nodes/*/hysteria-server-config.yaml")]
+for path in files:
+    path.write_text(path.read_text().replace(expected, live))
+PY
+}
+
+install_node_site() {
+  align_cert_paths
+  install -m 644 "$SCRIPT_DIR/$GENERATED_DIR/host-node.conf" "/etc/nginx/conf.d/tunnelrover-${PROJECT_SLUG}.conf"
+  {
+    printf 'domain=%q\n' "$DOMAIN"
+    printf 'container=%q\n' "hysteria-${PROJECT_SLUG}"
+  } > "/etc/tunnelrover/nodes/${PROJECT_SLUG}.env"
+  reload_nginx
 }
 
 install_docker
 ensure_swap
+release_host_nginx_ports
+ensure_host_nginx
 issue_certs
+install_node_site
 
-for required in nginx.conf index.html promtail-config.yaml; do
+for required in index.html promtail-config.yaml; do
   if [[ ! -f "$required" ]]; then
     echo "Missing $required" >&2
     exit 1
@@ -448,9 +537,9 @@ compose up -d --build --remove-orphans
 
 echo
 echo "Done. Hysteria middle node (project $PROJECT_SLUG):"
-read -r name domain listen control < "$GENERATED_DIR/summary.txt"
-echo "  hysteria2://<USER_UUID>@$domain:$listen?sni=$domain"
-echo "  https://$domain:$control  → nest-app control API"
+echo "  hysteria2://<USER_UUID>@$DOMAIN:$LISTEN_PORT?sni=$DOMAIN"
+echo "  https://$DOMAIN  → nest-app control API"
+echo "  nginx site: /etc/nginx/conf.d/tunnelrover-${PROJECT_SLUG}.conf"
 echo
-echo "Remove only this folder's containers and its built image:"
-echo "  docker compose down --rmi local --volumes --remove-orphans"
+echo "Remove this folder's containers, its built image, and its nginx site:"
+echo "  sudo ./deploy.sh down"

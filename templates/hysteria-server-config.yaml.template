@@ -1,8 +1,8 @@
 listen: :{{LISTEN_PORT}}
 
 tls:
-  cert: /etc/hysteria/certs/fullchain.pem
-  key: /etc/hysteria/certs/privkey.pem
+  cert: /etc/letsencrypt/live/{{DOMAIN}}/fullchain.pem
+  key: /etc/letsencrypt/live/{{DOMAIN}}/privkey.pem
 
 auth:
   type: http
