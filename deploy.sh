@@ -1,6 +1,7 @@
 #!/bin/bash
-# Several Hysteria middle nodes on one VPS. The exit hop is VLESS XHTTP.
-# Each node has its own listenPort (client UDP+TCP) and controlPort (nest API).
+# One Hysteria middle node per folder. The exit hop is VLESS XHTTP.
+# listenPort and controlPort are required: another copy of this folder on the
+# same host must use different ports. docker compose down stays inside this folder.
 #
 #   cp deploy/nodes.example.json deploy/nodes.json
 #   sudo ./deploy.sh
@@ -47,20 +48,23 @@ with nodes_path.open(encoding="utf-8") as f:
     raw = json.load(f)
 
 if isinstance(raw, list):
-    nodes = raw
-elif isinstance(raw, dict) and isinstance(raw.get("nodes"), list):
-    nodes = raw["nodes"]
+    if len(raw) != 1:
+        raise SystemExit(
+            "This folder installs one node. Copy the folder for the next node and give it other ports."
+        )
+    node = raw[0]
+elif isinstance(raw, dict) and "nodes" in raw:
+    raise SystemExit(
+        "This folder installs one node. Copy the folder for the next node and give it other ports."
+    )
 elif isinstance(raw, dict):
-    nodes = [raw]
+    node = raw
 else:
-    raise SystemExit("deploy/nodes.json must be an array of nodes")
+    raise SystemExit("deploy/nodes.json must be one node object")
 
-if not nodes:
-    raise SystemExit("deploy/nodes.json has no nodes")
-
-def port_num(value, default, label):
+def port_num(value, label):
     if value is None or value == "":
-        value = default
+        raise SystemExit(f"Fill in deploy/nodes.json: {label}")
     try:
         number = int(value)
     except (TypeError, ValueError):
@@ -76,67 +80,62 @@ def need(value, label):
     return text
 
 name_re = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,40}$")
-used_ports = {80: "certbot on port 80"}
-seen_names = set()
-seen_domains = set()
-secrets_changed = False
-prepared = []
+slug = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-")
+if not slug:
+    raise SystemExit(f"Folder name {root.name!r} cannot be used as a compose project name")
 
-for index, node in enumerate(nodes):
-    if not isinstance(node, dict):
-        raise SystemExit(f"nodes[{index}] must be an object")
-    label = f"nodes[{index}]"
-    name = need(node.get("name"), f"{label}.name")
-    if not name_re.match(name):
-        raise SystemExit(f"{label}.name must contain only letters, digits, '.', '_' or '-'")
-    if name in seen_names:
-        raise SystemExit(f"Duplicate node name: {name}")
-    seen_names.add(name)
-    domain = need(node.get("domain"), f"{name}.domain")
-    if domain in seen_domains:
-        raise SystemExit(f"Duplicate domain: {domain}")
-    seen_domains.add(domain)
-    token = need(node.get("nodeToken"), f"{name}.nodeToken")
-    exit_cfg = node.get("exit") or {}
-    address = need(exit_cfg.get("address"), f"{name}.exit.address")
-    exit_id = need(exit_cfg.get("id"), f"{name}.exit.id")
-    exit_path = need(exit_cfg.get("path"), f"{name}.exit.path")
-    if not exit_path.startswith("/"):
-        raise SystemExit(f"{name}.exit.path must start with /")
-    exit_mode = str(exit_cfg.get("mode") or "packet-up")
-    listen_port = port_num(node.get("listenPort"), 443, f"{name}.listenPort")
-    control_port = port_num(node.get("controlPort"), 8080, f"{name}.controlPort")
-    for field, number in (("listenPort", listen_port), ("controlPort", control_port)):
-        owner = used_ports.get(number)
-        if owner:
-            raise SystemExit(f"{name} {field} {number} overlaps {owner}")
-        used_ports[number] = f"{name} {field}"
-    secret = str(node.get("trafficStatsSecret") or "")
-    if not secret:
-        secret = secrets.token_hex(32)
-        node["trafficStatsSecret"] = secret
-        secrets_changed = True
-    bandwidth = node.get("bandwidth") or {}
-    prepared.append({
-        "name": name,
-        "domain": domain,
-        "token": token,
-        "listen_port": str(listen_port),
-        "control_port": str(control_port),
-        "exit_address": address,
-        "exit_port": str(port_num(exit_cfg.get("port"), 443, f"{name}.exit.port")),
-        "exit_id": exit_id,
-        "exit_sni": str(exit_cfg.get("sni") or address),
-        "exit_path": exit_path,
-        "exit_mode": exit_mode,
-        "secret": secret,
-        "masquerade": str(node.get("masqueradeUrl") or "https://www.cloudflare.com"),
-        "up": str(bandwidth.get("up") or "1 gbps"),
-        "down": str(bandwidth.get("down") or "1 gbps"),
-        "test_mode": "true" if node.get("testMode") else "false",
-        "email": str(node.get("certbotEmail") or "info@tunnelrover.com"),
-        "swap": str(node.get("swapSize") or "2G"),
-    })
+if not isinstance(node, dict):
+    raise SystemExit("deploy/nodes.json must be one node object")
+name = need(node.get("name"), "name")
+if not name_re.match(name):
+    raise SystemExit("name must contain only letters, digits, '.', '_' or '-'")
+domain = need(node.get("domain"), "domain")
+token = need(node.get("nodeToken"), "nodeToken")
+exit_cfg = node.get("exit") or {}
+address = need(exit_cfg.get("address"), "exit.address")
+exit_id = need(exit_cfg.get("id"), "exit.id")
+exit_path = need(exit_cfg.get("path"), "exit.path")
+if not exit_path.startswith("/"):
+    raise SystemExit("exit.path must start with /")
+exit_mode = str(exit_cfg.get("mode") or "packet-up")
+listen_port = port_num(node.get("listenPort"), "listenPort")
+control_port = port_num(node.get("controlPort"), "controlPort")
+if listen_port == control_port or listen_port == 80 or control_port == 80:
+    raise SystemExit("listenPort, controlPort and port 80 must be three different ports")
+bind_http = node.get("bindHttp", True)
+if isinstance(bind_http, str):
+    bind_http = bind_http.strip().lower() not in ("0", "false", "no")
+secrets_changed = False
+secret = str(node.get("trafficStatsSecret") or "")
+if not secret:
+    secret = secrets.token_hex(32)
+    node["trafficStatsSecret"] = secret
+    secrets_changed = True
+bandwidth = node.get("bandwidth") or {}
+exit_port_value = exit_cfg.get("port")
+if exit_port_value is None or exit_port_value == "":
+    exit_port_value = 443
+node_cfg = {
+    "name": name,
+    "domain": domain,
+    "token": token,
+    "listen_port": str(listen_port),
+    "control_port": str(control_port),
+    "bind_http": bind_http,
+    "exit_address": address,
+    "exit_port": str(port_num(exit_port_value, "exit.port")),
+    "exit_id": exit_id,
+    "exit_sni": str(exit_cfg.get("sni") or address),
+    "exit_path": exit_path,
+    "exit_mode": exit_mode,
+    "secret": secret,
+    "masquerade": str(node.get("masqueradeUrl") or "https://www.cloudflare.com"),
+    "up": str(bandwidth.get("up") or "1 gbps"),
+    "down": str(bandwidth.get("down") or "1 gbps"),
+    "test_mode": "true" if node.get("testMode") else "false",
+    "email": str(node.get("certbotEmail") or "info@tunnelrover.com"),
+    "swap": str(node.get("swapSize") or "2G"),
+}
 
 if secrets_changed:
     with nodes_path.open("w", encoding="utf-8") as f:
@@ -160,22 +159,54 @@ def render(template, mapping, dest):
     if dest.endswith(".json"):
         json.loads(text)
 
+node = node_cfg
+mapping = {
+    "DOMAIN": node["domain"],
+    "LISTEN_PORT": node["listen_port"],
+    "CONTROL_PORT": node["control_port"],
+    "TRAFFIC_STATS_SECRET": node["secret"],
+    "MASQUERADE_URL": node["masquerade"],
+    "BANDWIDTH_UP": node["up"],
+    "BANDWIDTH_DOWN": node["down"],
+    "EXIT_ADDRESS": node["exit_address"],
+    "EXIT_PORT": node["exit_port"],
+    "EXIT_ID": node["exit_id"],
+    "EXIT_SNI": node["exit_sni"],
+    "EXIT_XHTTP_PATH": node["exit_path"],
+    "EXIT_XHTTP_MODE": node["exit_mode"],
+    "ROOT": str(root),
+}
+render("node-single.conf.template", mapping, f"nginx/{node['name']}.conf")
+render("hysteria-server-config.yaml.template", mapping, f"nodes/{node['name']}/hysteria-server-config.yaml")
+render("xray-exit-config.json.template", mapping, f"nodes/{node['name']}/xray-exit-config.json")
+(generated / "nodes" / node["name"] / ".env").write_text(
+    "\n".join([
+        f"NODE_TOKEN={node['token']}",
+        f"HYSTERIA_TRAFFIC_SECRET={node['secret']}",
+        "REDIS_HOST=redis",
+        "REDIS_PORT=6379",
+        "HYSTERIA_HOST=hysteria",
+        "HYSTERIA_TRAFFIC_PORT=9999",
+        f"TEST_MODE={node['test_mode']}",
+        "",
+    ])
+)
+
+ports = [f'      - "{node["control_port"]}:{node["control_port"]}"']
+if node["bind_http"]:
+    ports.insert(0, '      - "80:80"')
+
 lines = [
     "networks:",
     "  instance-network:",
-    "    name: instance-network",
     "",
     "services:",
     "  nginx:",
     "    image: nginx:alpine",
-    "    container_name: nginx-proxy",
+    f"    container_name: nginx-{slug}",
     "    restart: always",
     "    ports:",
-    '      - "80:80"',
-]
-for node in prepared:
-    lines.append(f'      - "{node["control_port"]}:{node["control_port"]}"')
-lines += [
+    *ports,
     "    volumes:",
     f"      - {root}/nginx.conf:/etc/nginx/conf.d/default.conf:ro",
     f"      - {root}/generated/nginx:/etc/nginx/conf.d/nodes:ro",
@@ -186,7 +217,7 @@ lines += [
     "",
     "  promtail:",
     "    image: grafana/promtail:latest",
-    "    container_name: promtail",
+    f"    container_name: promtail-{slug}",
     "    restart: unless-stopped",
     "    volumes:",
     "      - /var/lib/docker/containers:/var/lib/docker/containers:ro",
@@ -196,113 +227,91 @@ lines += [
     "    privileged: true",
     "    networks:",
     "      - instance-network",
+    "",
+    "  redis:",
+    "    image: redis:7-alpine",
+    f"    container_name: redis-{slug}",
+    "    restart: unless-stopped",
+    '    command: redis-server --save "" --appendonly no',
+    "    networks:",
+    "      - instance-network",
+    "",
+    "  nest-app:",
+    f"    container_name: nest-app-{slug}",
+    "    restart: always",
+    "    build:",
+    f"      context: {root}",
+    "      dockerfile: Dockerfile.nestjs",
+    "    env_file:",
+    f"      - {root}/generated/nodes/{node['name']}/.env",
+    "    networks:",
+    "      - instance-network",
+    "    depends_on:",
+    "      - redis",
+    "",
+    "  xray-exit:",
+    "    image: teddysun/xray:latest",
+    f"    container_name: xray-exit-{slug}",
+    "    hostname: xray-exit",
+    "    restart: unless-stopped",
+    "    volumes:",
+    f"      - {root}/generated/nodes/{node['name']}/xray-exit-config.json:/etc/xray/config.json:ro",
+    "    command: xray run -config /etc/xray/config.json",
+    "    networks:",
+    "      - instance-network",
+    "",
+    "  hysteria:",
+    "    image: tobyxdd/hysteria:latest",
+    f"    container_name: hysteria-{slug}",
+    "    restart: unless-stopped",
+    "    ports:",
+    f'      - "{node["listen_port"]}:{node["listen_port"]}/udp"',
+    f'      - "{node["listen_port"]}:{node["listen_port"]}/tcp"',
+    "    volumes:",
+    f"      - {root}/generated/nodes/{node['name']}/hysteria-server-config.yaml:/etc/hysteria/config.yaml:ro",
+    f"      - {root}/nginx-certs:/etc/hysteria/certs:ro",
+    "    command: server -c /etc/hysteria/config.yaml",
+    "    networks:",
+    "      - instance-network",
+    "    depends_on:",
+    "      - nest-app",
+    "      - xray-exit",
 ]
 
-for node in prepared:
-    name = node["name"]
-    mapping = {
-        "NODE_NAME": name,
-        "DOMAIN": node["domain"],
-        "LISTEN_PORT": node["listen_port"],
-        "CONTROL_PORT": node["control_port"],
-        "TRAFFIC_STATS_SECRET": node["secret"],
-        "MASQUERADE_URL": node["masquerade"],
-        "BANDWIDTH_UP": node["up"],
-        "BANDWIDTH_DOWN": node["down"],
-        "EXIT_ADDRESS": node["exit_address"],
-        "EXIT_PORT": node["exit_port"],
-        "EXIT_ID": node["exit_id"],
-        "EXIT_SNI": node["exit_sni"],
-        "EXIT_XHTTP_PATH": node["exit_path"],
-        "EXIT_XHTTP_MODE": node["exit_mode"],
-        "ROOT": str(root),
-    }
-    render("node-single.conf.template", mapping, f"nginx/{name}.conf")
-    render("hysteria-server-config.yaml.template", mapping, f"nodes/{name}/hysteria-server-config.yaml")
-    render("xray-exit-config.json.template", mapping, f"nodes/{name}/xray-exit-config.json")
-    (generated / "nodes" / name / ".env").write_text(
-        "\n".join([
-            f"NODE_TOKEN={node['token']}",
-            f"HYSTERIA_TRAFFIC_SECRET={node['secret']}",
-            f"REDIS_HOST=redis-{name}",
-            "REDIS_PORT=6379",
-            f"HYSTERIA_HOST=hysteria-{name}",
-            "HYSTERIA_TRAFFIC_PORT=9999",
-            f"TEST_MODE={node['test_mode']}",
-            "",
-        ])
-    )
-    lines += [
-        "",
-        f"  redis-{name}:",
-        "    image: redis:7-alpine",
-        f"    container_name: redis-{name}",
-        "    restart: unless-stopped",
-        '    command: redis-server --save "" --appendonly no',
-        "    networks:",
-        "      - instance-network",
-        "",
-        f"  nest-app-{name}:",
-        f"    container_name: nest-app-{name}",
-        "    restart: always",
-        "    image: node-nest-app",
-        "    build:",
-        f"      context: {root}",
-        "      dockerfile: Dockerfile.nestjs",
-        "    env_file:",
-        f"      - {root}/generated/nodes/{name}/.env",
-        "    networks:",
-        "      - instance-network",
-        "    depends_on:",
-        f"      - redis-{name}",
-        "",
-        f"  xray-exit-{name}:",
-        "    image: teddysun/xray:latest",
-        f"    container_name: xray-exit-{name}",
-        f"    hostname: xray-exit-{name}",
-        "    restart: unless-stopped",
-        "    volumes:",
-        f"      - {root}/generated/nodes/{name}/xray-exit-config.json:/etc/xray/config.json:ro",
-        "    command: xray run -config /etc/xray/config.json",
-        "    networks:",
-        "      instance-network:",
-        "        aliases:",
-        f"          - xray-exit-{name}",
-        "",
-        f"  hysteria-{name}:",
-        "    image: tobyxdd/hysteria:latest",
-        f"    container_name: hysteria-{name}",
-        "    restart: unless-stopped",
-        "    ports:",
-        f'      - "{node["listen_port"]}:{node["listen_port"]}/udp"',
-        f'      - "{node["listen_port"]}:{node["listen_port"]}/tcp"',
-        "    volumes:",
-        f"      - {root}/generated/nodes/{name}/hysteria-server-config.yaml:/etc/hysteria/config.yaml:ro",
-        f"      - {root}/nginx-certs:/etc/hysteria/certs:ro",
-        "    command: server -c /etc/hysteria/config.yaml",
-        "    networks:",
-        "      - instance-network",
-        "    depends_on:",
-        f"      - nest-app-{name}",
-        f"      - xray-exit-{name}",
-    ]
-
 (generated / "docker-compose.yaml").write_text("\n".join(lines) + "\n")
-(generated / "domains.txt").write_text("".join(f"{node['domain']}\n" for node in prepared))
+(generated / "domains.txt").write_text(node["domain"] + "\n")
 (generated / "summary.txt").write_text(
-    "".join(
-        f"{node['name']} {node['domain']} {node['listen_port']} {node['control_port']}\n"
-        for node in prepared
-    )
+    f"{node['name']} {node['domain']} {node['listen_port']} {node['control_port']}\n"
 )
 (generated / "deploy.env").write_text(
     "\n".join([
-        f"SWAP_SIZE={shlex.quote(prepared[0]['swap'])}",
-        f"CERTBOT_EMAIL={shlex.quote(prepared[0]['email'])}",
+        f"SWAP_SIZE={shlex.quote(node['swap'])}",
+        f"CERTBOT_EMAIL={shlex.quote(node['email'])}",
+        f"PROJECT_SLUG={shlex.quote(slug)}",
         "",
     ])
 )
-print(f"Generated {len(prepared)} hysteria middle node(s)")
+
+env_path = root / ".env"
+existing = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+updates = {
+    "COMPOSE_FILE": "generated/docker-compose.yaml",
+    "COMPOSE_PROJECT_NAME": slug,
+}
+written = []
+seen = set()
+for line in existing:
+    key = line.split("=", 1)[0] if line and not line.startswith("#") and "=" in line else None
+    if key in updates:
+        written.append(f"{key}={updates[key]}")
+        seen.add(key)
+    else:
+        written.append(line)
+for key, value in updates.items():
+    if key not in seen:
+        written.append(f"{key}={value}")
+env_path.write_text("\n".join(written).rstrip() + "\n")
+print(f"Generated node {node['name']} in project {slug}")
 PY
 
 # shellcheck disable=SC1091
@@ -338,7 +347,11 @@ ensure_swap() {
 }
 
 compose() {
-  docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" "$@"
+  docker compose \
+    --project-name "$PROJECT_SLUG" \
+    --project-directory "$SCRIPT_DIR" \
+    -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" \
+    "$@"
 }
 
 domain_in_cert() {
@@ -434,9 +447,10 @@ done
 compose up -d --build --remove-orphans
 
 echo
-echo "Done. Hysteria middle nodes:"
-while read -r name domain listen control; do
-  echo "  $name"
-  echo "    hysteria2://<USER_UUID>@$domain:$listen?sni=$domain"
-  echo "    https://$domain:$control  → nest-app control API"
-done < "$GENERATED_DIR/summary.txt"
+echo "Done. Hysteria middle node (project $PROJECT_SLUG):"
+read -r name domain listen control < "$GENERATED_DIR/summary.txt"
+echo "  hysteria2://<USER_UUID>@$domain:$listen?sni=$domain"
+echo "  https://$domain:$control  → nest-app control API"
+echo
+echo "Remove only this folder's containers and its built image:"
+echo "  docker compose down --rmi local --volumes --remove-orphans"

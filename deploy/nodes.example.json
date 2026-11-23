@@ -1,50 +1,24 @@
-[
-  {
-    "name": "node-nl-1",
-    "domain": "node-nl-1.tunnelrover.com",
-    "listenPort": 443,
-    "controlPort": 8080,
-    "nodeToken": "REPLACE_NODE_TOKEN",
-    "certbotEmail": "info@tunnelrover.com",
-    "swapSize": "2G",
-    "testMode": false,
-    "trafficStatsSecret": "",
-    "masqueradeUrl": "https://www.cloudflare.com",
-    "bandwidth": {
-      "up": "1 gbps",
-      "down": "1 gbps"
-    },
-    "exit": {
-      "address": "exit-nl-1.tunnelrover.com",
-      "port": 443,
-      "id": "REPLACE_RELAY_UUID",
-      "sni": "exit-nl-1.tunnelrover.com",
-      "path": "/assets/build/_app/immutable/chunks/",
-      "mode": "packet-up"
-    }
+{
+  "name": "node-nl-1",
+  "domain": "node-nl-1.tunnelrover.com",
+  "listenPort": 443,
+  "controlPort": 8080,
+  "nodeToken": "REPLACE_NODE_TOKEN",
+  "certbotEmail": "info@tunnelrover.com",
+  "swapSize": "2G",
+  "testMode": false,
+  "trafficStatsSecret": "",
+  "masqueradeUrl": "https://www.cloudflare.com",
+  "bandwidth": {
+    "up": "1 gbps",
+    "down": "1 gbps"
   },
-  {
-    "name": "node-nl-2",
-    "domain": "node-nl-2.tunnelrover.com",
-    "listenPort": 444,
-    "controlPort": 8081,
-    "nodeToken": "REPLACE_NODE_TOKEN_2",
-    "certbotEmail": "info@tunnelrover.com",
-    "swapSize": "2G",
-    "testMode": false,
-    "trafficStatsSecret": "",
-    "masqueradeUrl": "https://www.cloudflare.com",
-    "bandwidth": {
-      "up": "1 gbps",
-      "down": "1 gbps"
-    },
-    "exit": {
-      "address": "exit-nl-1.tunnelrover.com",
-      "port": 443,
-      "id": "REPLACE_RELAY_UUID",
-      "sni": "exit-nl-1.tunnelrover.com",
-      "path": "/assets/build/_app/immutable/chunks/",
-      "mode": "packet-up"
-    }
+  "exit": {
+    "address": "exit-nl-1.tunnelrover.com",
+    "port": 443,
+    "id": "REPLACE_RELAY_UUID",
+    "sni": "exit-nl-1.tunnelrover.com",
+    "path": "/assets/build/_app/immutable/chunks/",
+    "mode": "packet-up"
   }
-]
+}

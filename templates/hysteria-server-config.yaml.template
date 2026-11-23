@@ -7,7 +7,7 @@ tls:
 auth:
   type: http
   http:
-    url: http://nest-app-{{NODE_NAME}}:5000/internal/hysteria/auth
+    url: http://nest-app:5000/internal/hysteria/auth
     insecure: true
 
 trafficStats:
@@ -27,4 +27,4 @@ outbounds:
   - name: to_exit
     type: socks5
     socks5:
-      addr: xray-exit-{{NODE_NAME}}:1080
+      addr: xray-exit:1080

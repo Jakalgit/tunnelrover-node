@@ -1,2 +1,2 @@
-# deploy.sh writes generated/docker-compose.yaml from the nodes array.
+# deploy.sh writes generated/docker-compose.yaml for the single node in this folder.
 # This file is not rendered.
