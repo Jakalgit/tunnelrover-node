@@ -20,6 +20,10 @@
         "clients": [],
         "decryption": "none"
       },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
+      },
       "streamSettings": {
         "network": "kcp",
         "security": "none",
@@ -57,49 +61,8 @@
   ],
   "outbounds": [
     {
-      "protocol": "vless",
-      "tag": "to-exit",
-      "settings": {
-        "vnext": [{
-          "address": "{{EXIT_ADDRESS}}",
-          "port": 443,
-          "users": [{
-            "id": "{{EXIT_ID}}",
-            "encryption": "none"
-          }]
-        }]
-      },
-      "streamSettings": {
-        "network": "xhttp",
-        "security": "tls",
-        "sockopt": {
-          "tcpKeepAliveIdle": 30,
-          "tcpKeepAliveInterval": 10,
-          "tcpNoDelay": true
-        },
-        "tlsSettings": {
-          "alpn": ["h2"],
-          "fingerprint": "chrome",
-          "serverName": "{{EXIT_SNI}}"
-        },
-        "xhttpSettings": {
-          "mode": "{{EXIT_XHTTP_MODE}}",
-          "path": "{{EXIT_XHTTP_PATH}}",
-          "extra": {
-            "xmux": {
-              "cMaxReuseTimes": 0,
-              "hKeepAlivePeriod": 0,
-              "hMaxRequestTimes": "600-900",
-              "hMaxReusableSecs": "1800-3000",
-              "maxConcurrency": "0"
-            },
-            "xPaddingBytes": "100-1000"
-          }
-        }
-      }
-    },
-    {
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "direct"
     },
     {
       "protocol": "blackhole",
@@ -112,7 +75,7 @@
       {
         "type": "field",
         "inboundTag": ["vless-xdns"],
-        "outboundTag": "to-exit"
+        "outboundTag": "direct"
       },
       {
         "type": "field",

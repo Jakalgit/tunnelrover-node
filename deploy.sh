@@ -1,6 +1,6 @@
 #!/bin/bash
-# One XDNS middle node per host. Clients reach it through DNS, not through its IP.
-# The exit hop is VLESS XHTTP. UDP 53 can belong to only one folder on the machine.
+# One XDNS exit node per host. Clients reach it through DNS, and it opens the internet itself.
+# UDP 53 can belong to only one folder on the machine.
 #
 #   cp deploy/nodes.example.json deploy/nodes.json
 #   sudo ./deploy.sh
@@ -92,8 +92,6 @@ nodes = [node]
 
 name_re = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
 domain_re = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$")
-default_path = "/assets/build/_app/immutable/chunks/"
-default_mode = "packet-up"
 
 def need(value, label):
     if not value or str(value).startswith("REPLACE_"):
@@ -136,21 +134,11 @@ for index, node in enumerate(nodes):
         raise SystemExit("Fill in deploy/nodes.json: controlPort")
     if control_port in (53, 80) or not 1 <= control_port <= 65535:
         raise SystemExit("controlPort must be a free TCP port other than 53 and 80")
-    exit_cfg = node.get("exit") or {}
-    exit_address = need(exit_cfg.get("address"), "exit.address")
-    exit_id = need(exit_cfg.get("id"), "exit.id")
-    xhttp_path = str(exit_cfg.get("xhttpPath") or default_path)
-    xhttp_mode = str(exit_cfg.get("xhttpMode") or default_mode)
     mapping = {
         "NODE_NAME": name,
         "DOMAIN": domain,
         "TUNNEL_DOMAIN": tunnel,
         "CONTROL_PORT": str(control_port),
-        "EXIT_ADDRESS": exit_address,
-        "EXIT_ID": exit_id,
-        "EXIT_SNI": str(exit_cfg.get("sni") or exit_address),
-        "EXIT_XHTTP_PATH": xhttp_path,
-        "EXIT_XHTTP_MODE": xhttp_mode,
     }
     render("templates/node-single.conf.template", mapping, f"generated/nginx/nodes/{name}.conf")
     config = render("templates/xray-config.json.template", mapping, f"generated/nodes/{name}/xray-config.json")
@@ -401,7 +389,7 @@ done
 compose up -d --build
 
 echo
-echo "Done. XDNS middle node (project $PROJECT_SLUG):"
+echo "Done. XDNS exit node (project $PROJECT_SLUG):"
 read -r domain tunnel control < "$GENERATED_DIR/summary.txt"
 echo "  DNS tunnel name: $tunnel"
 echo "  Point its NS record at an A record of this server. UDP 53 is Xray."

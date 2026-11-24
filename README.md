@@ -1,15 +1,10 @@
-# Middle node, XDNS (branch `xdns`)
+# Exit node, XDNS (branch `xdns`)
 
-One folder is one XDNS entry node. The phone does not connect to this server's IP. It sends DNS queries to a resolver that is already reachable, and the resolver delivers them to this host on UDP 53.
+One folder is one XDNS exit. The phone does not connect to this server's IP. It sends DNS queries to a resolver that is already reachable, and the resolver delivers them to this host on UDP 53. Xray opens the destination on the internet itself.
 
 ```
-Phone ──DNS query──► resolver ──UDP 53──► xray (VLESS + XDNS)
-                                              │ XHTTP
-                                              ▼
-                                            exit
+Phone ──DNS query──► resolver ──UDP 53──► xray (VLESS + XDNS) ──► internet
 ```
-
-The exit is a normal XHTTP exit (`tunnelrover-exit-node` branch `xhttp`). `exit.id` here is that exit's relay UUID.
 
 ## DNS records
 
@@ -27,7 +22,7 @@ The exit is a normal XHTTP exit (`tunnelrover-exit-node` branch `xhttp`). `exit.
 ## Deploy
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
-2. Fill in `name`, `domain`, `tunnelDomain`, `controlPort`, `nodeToken`, and `exit`.
+2. Fill in `name`, `domain`, `tunnelDomain`, `controlPort`, and `nodeToken`.
 3. On the VPS, UDP 53 must be free. `systemd-resolved` often holds it.
 
 ```bash
@@ -73,6 +68,6 @@ Server MTU is 900. Client MTU stays 130 so a DNS answer is not truncated.
 
 | Field | Value |
 |-------|--------|
-| `connection` | `xhttp` is the exit hop, not this client profile |
 | control API | `https://<domain>:<controlPort>` |
 | bearer | `nodeToken` |
+| client transport | VLESS + XDNS, resolver `77.88.8.8` when the phone is behind a whitelist |
