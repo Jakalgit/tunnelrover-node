@@ -1,66 +1,78 @@
-# Middle-node xhttp architecture (branch `middle-node-xhttp`)
+# Middle node, XDNS (branch `xdns`)
 
-One VPS runs **one nginx** and **N relay stacks**. Each stack is a pair `xray-{name}` + `nest-app-{name}` for its own domain.
-
-Client connects with **VLESS + xhttp** (TLS terminated by nginx, HTTP/2). Relay forwards to **xhttp exit** (`tunnelrover-exit-node` branch `xhttp`).
+One folder is one XDNS entry node. The phone does not connect to this server's IP. It sends DNS queries to a resolver that is already reachable, and the resolver delivers them to this host on UDP 53.
 
 ```
-  Client ──xhttp──► middle (nginx + xray) ──xhttp/TLS──► exit (nginx + xray) ──► internet
+Phone ──DNS query──► resolver ──UDP 53──► xray (VLESS + XDNS)
+                                              │ XHTTP
+                                              ▼
+                                            exit
 ```
+
+The exit is a normal XHTTP exit (`tunnelrover-exit-node` branch `xhttp`). `exit.id` here is that exit's relay UUID.
+
+## DNS records
+
+`tunnelDomain` is the name clients put in the XDNS mask. It is an NS name, not an address record.
+
+| Record | Example | Target |
+|--------|---------|--------|
+| A | `ns.example.com` | this server's IP |
+| NS | `t.example.com` | `ns.example.com` |
+
+`tunnelDomain` is `t.example.com`. The A name must not be a subdomain of the NS name. The zone does not have to be `.ru`.
+
+`domain` is only the control API. Certbot issues a certificate for it.
 
 ## Deploy
 
 1. Copy `deploy/nodes.example.json` → `deploy/nodes.json`.
-2. For each node set:
-   - `name`, `domain`, `nodeToken` (same as `accessToken` in Tunnel Rover DB)
-   - `xhttpPath`, `xhttpMode` (default: `/assets/build/_app/immutable/chunks/`, `packet-up`)
-   - `exit` — xhttp exit from `tunnelrover-exit-node` branch `xhttp`
-3. On VPS:
+2. Fill in `name`, `domain`, `tunnelDomain`, `controlPort`, `nodeToken`, and `exit`.
+3. On the VPS, UDP 53 must be free. `systemd-resolved` often holds it.
 
 ```bash
 chmod +x deploy.sh
 sudo ./deploy.sh
 ```
 
-Re-running `./deploy.sh` is safe. Files in `templates/` and the repo `docker-compose.yaml` are only read. Each run rebuilds `generated/`, and certbot runs only when the existing certificate does not cover every domain in `nodes.json`.
+Re-running `./deploy.sh` is safe. Templates are only read. Each run rebuilds `generated/` and skips certbot when the live certificate already covers `domain`.
 
-## Generated files (gitignored)
-
-| Path | Purpose |
-|------|---------|
-| `generated/nginx/nodes/*.conf` | nginx `server` blocks with xhttp path → xray |
-| `generated/nodes/*/xray-config.json` | relay xray: xhttp inbound + REALITY outbound |
-| `generated/nodes/*/.env` | `XRAY_HOST`, `NODE_TOKEN` |
-| `generated/docker-compose.yaml` | nginx, promtail, xray и nest на каждую ноду |
-
-## Compose
+Only one XDNS folder can run on a host, because recursive resolvers always query port 53.
 
 ```bash
-docker compose --project-directory . -f generated/docker-compose.yaml up -d
+sudo ./deploy.sh down
 ```
 
-## Tunnel Rover DB (per middle node)
+`down` removes this folder's containers and the Nest image built here.
+
+## Client
+
+Same UUID as a user added through the control API. Resolver is one the phone can reach. For a whitelist network that is Yandex DNS, not `1.1.1.1` or `8.8.8.8`.
+
+```json
+"streamSettings": {
+  "network": "kcp",
+  "kcpSettings": { "mtu": 130, "tti": 200 },
+  "finalmask": {
+    "udp": [
+      {
+        "type": "xdns",
+        "settings": {
+          "domains": [{ "names": ["t.example.com"], "types": [16], "edns0": 1232 }],
+          "resolvers": [{ "addrs": ["udp://77.88.8.8:53"] }]
+        }
+      }
+    ]
+  }
+}
+```
+
+Server MTU is 900. Client MTU stays 130 so a DNS answer is not truncated.
+
+## Tunnel Rover DB
 
 | Field | Value |
 |-------|--------|
-| `connection` | `xhttp` |
-| `host` | `domain` from nodes.json |
-| `tcpPort` | `443` |
-| `pathServerName` | `xhttpPath` from nodes.json (e.g. `/assets/build/_app/immutable/chunks/`) |
-
-## Exit node (`tunnelrover-exit-node` branch `xhttp`)
-
-```bash
-cp deploy/nodes.example.json deploy/nodes.json
-sudo ./deploy.sh
-```
-
-`relayUuid` on the exit is the same UUID as `exit.id` here.
-
-## vs `middle-node` (WS)
-
-| | middle-node | middle-node-xhttp |
-|--|-------------|-----------------|
-| Client transport | VLESS + WS | VLESS + xhttp |
-| Middle → exit | REALITY tcp-node | xhttp exit-node |
-| Exit repo | tunnelrover-exit-node `main` | tunnelrover-exit-node `xhttp` |
+| `connection` | `xhttp` is the exit hop, not this client profile |
+| control API | `https://<domain>:<controlPort>` |
+| bearer | `nodeToken` |

@@ -45,6 +45,7 @@ lerna-debug.log*
 # middle-node generated deploy artifacts
 /generated
 /deploy/nodes.json
+/deploy/nodes.pasted.json
 /nginx-certs
 
 # temp directory

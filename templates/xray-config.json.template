@@ -12,25 +12,36 @@
   },
   "inbounds": [
     {
-      "tag": "vless-xhttp",
+      "tag": "vless-xdns",
       "listen": "0.0.0.0",
-      "port": 443,
+      "port": 53,
       "protocol": "vless",
       "settings": {
         "clients": [],
         "decryption": "none"
       },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"]
-      },
       "streamSettings": {
-        "network": "xhttp",
+        "network": "kcp",
         "security": "none",
-        "xhttpSettings": {
-          "mode": "{{XHTTP_MODE}}",
-          "path": "{{XHTTP_PATH}}",
-          "host": "{{DOMAIN}}"
+        "kcpSettings": {
+          "mtu": 900,
+          "tti": 200
+        },
+        "finalmask": {
+          "udp": [
+            {
+              "type": "xdns",
+              "settings": {
+                "domains": [
+                  {
+                    "names": ["{{TUNNEL_DOMAIN}}"],
+                    "types": [16],
+                    "edns0": 1232
+                  }
+                ]
+              }
+            }
+          ]
         }
       }
     },
@@ -100,7 +111,7 @@
     "rules": [
       {
         "type": "field",
-        "inboundTag": ["vless-xhttp"],
+        "inboundTag": ["vless-xdns"],
         "outboundTag": "to-exit"
       },
       {

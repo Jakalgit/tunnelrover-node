@@ -1,8 +1,10 @@
 #!/bin/bash
-# Middle-node xhttp. One VPS, one nginx, N relay stacks.
+# One XDNS middle node per host. Clients reach it through DNS, not through its IP.
+# The exit hop is VLESS XHTTP. UDP 53 can belong to only one folder on the machine.
 #
 #   cp deploy/nodes.example.json deploy/nodes.json
 #   sudo ./deploy.sh
+#   sudo ./deploy.sh down
 #
 # Safe to run again: templates are only read, generated files are rebuilt,
 # certbot runs only when a domain is missing from the live certificate.
@@ -17,6 +19,34 @@ GENERATED_DIR="generated"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root: sudo ./deploy.sh" >&2
+  exit 1
+fi
+
+folder_slug() {
+  python3 - "$SCRIPT_DIR" <<'PY'
+import pathlib, re, sys
+slug = re.sub(r"[^a-z0-9_-]+", "-", pathlib.Path(sys.argv[1]).name.lower()).strip("-")
+if not slug:
+    raise SystemExit("Folder name cannot be used as a compose project name")
+print(slug)
+PY
+}
+
+if [[ "${1:-}" == "down" ]]; then
+  PROJECT_SLUG="$(folder_slug)"
+  if [[ -f "$GENERATED_DIR/docker-compose.yaml" ]]; then
+    docker compose \
+      --project-name "$PROJECT_SLUG" \
+      --project-directory "$SCRIPT_DIR" \
+      -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" \
+      down --rmi local --volumes --remove-orphans
+  fi
+  echo "Removed project ${PROJECT_SLUG} and its containers."
+  exit 0
+fi
+
+if [[ -n "${1:-}" ]]; then
+  echo "Usage: sudo ./deploy.sh [down]" >&2
   exit 1
 fi
 
@@ -39,6 +69,9 @@ python3 - "$SCRIPT_DIR" "$NODES_FILE" <<'PY'
 import json, pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1]).resolve()
+slug = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-")
+if not slug:
+    raise SystemExit(f"Folder name {root.name!r} cannot be used as a compose project name")
 nodes_path = pathlib.Path(sys.argv[2])
 if not nodes_path.is_absolute():
     nodes_path = root / nodes_path
@@ -46,22 +79,19 @@ if not nodes_path.is_absolute():
 with nodes_path.open(encoding="utf-8") as f:
     raw = json.load(f)
 
-if isinstance(raw, dict) and isinstance(raw.get("nodes"), list):
-    settings = raw
-    nodes = raw["nodes"]
-elif isinstance(raw, list):
-    settings = raw[0] if raw else {}
-    nodes = raw
+if isinstance(raw, list):
+    if len(raw) != 1:
+        raise SystemExit("This host installs one XDNS node: UDP 53 cannot be shared.")
+    node = raw[0]
 elif isinstance(raw, dict) and raw.get("domain"):
-    settings = raw
-    nodes = [raw]
+    node = raw
 else:
-    raise SystemExit("deploy/nodes.json must be a node array or {\"nodes\": [...]}")
+    raise SystemExit("deploy/nodes.json must be one node object")
 
-if not nodes:
-    raise SystemExit("No nodes defined in deploy/nodes.json")
+nodes = [node]
 
 name_re = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
+domain_re = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$")
 default_path = "/assets/build/_app/immutable/chunks/"
 default_mode = "packet-up"
 
@@ -92,26 +122,35 @@ rendered = []
 for index, node in enumerate(nodes):
     if not isinstance(node, dict):
         raise SystemExit(f"Node #{index} must be an object")
-    name = need(node.get("name"), f"nodes[{index}].name")
-    domain = need(node.get("domain"), f"{name}.domain")
-    token = need(node.get("nodeToken"), f"{name}.nodeToken")
+    name = need(node.get("name"), "name")
+    domain = need(node.get("domain"), "domain")
+    tunnel = need(node.get("tunnelDomain"), "tunnelDomain")
+    token = need(node.get("nodeToken"), "nodeToken")
     if not name_re.match(name):
         raise SystemExit(f"Node name {name!r} must match {name_re.pattern}")
+    if not domain_re.match(tunnel) or tunnel.count(".") < 1:
+        raise SystemExit("tunnelDomain must be a DNS name, for example t.example.com")
+    try:
+        control_port = int(node.get("controlPort"))
+    except (TypeError, ValueError):
+        raise SystemExit("Fill in deploy/nodes.json: controlPort")
+    if control_port in (53, 80) or not 1 <= control_port <= 65535:
+        raise SystemExit("controlPort must be a free TCP port other than 53 and 80")
     exit_cfg = node.get("exit") or {}
-    exit_address = need(exit_cfg.get("address"), f"{name}.exit.address")
-    exit_id = need(exit_cfg.get("id"), f"{name}.exit.id")
-    xhttp_path = str(node.get("xhttpPath") or default_path)
-    xhttp_mode = str(node.get("xhttpMode") or default_mode)
+    exit_address = need(exit_cfg.get("address"), "exit.address")
+    exit_id = need(exit_cfg.get("id"), "exit.id")
+    xhttp_path = str(exit_cfg.get("xhttpPath") or default_path)
+    xhttp_mode = str(exit_cfg.get("xhttpMode") or default_mode)
     mapping = {
         "NODE_NAME": name,
         "DOMAIN": domain,
-        "XHTTP_PATH": xhttp_path,
-        "XHTTP_MODE": xhttp_mode,
+        "TUNNEL_DOMAIN": tunnel,
+        "CONTROL_PORT": str(control_port),
         "EXIT_ADDRESS": exit_address,
         "EXIT_ID": exit_id,
         "EXIT_SNI": str(exit_cfg.get("sni") or exit_address),
-        "EXIT_XHTTP_PATH": str(exit_cfg.get("xhttpPath") or xhttp_path),
-        "EXIT_XHTTP_MODE": str(exit_cfg.get("xhttpMode") or xhttp_mode),
+        "EXIT_XHTTP_PATH": xhttp_path,
+        "EXIT_XHTTP_MODE": xhttp_mode,
     }
     render("templates/node-single.conf.template", mapping, f"generated/nginx/nodes/{name}.conf")
     config = render("templates/xray-config.json.template", mapping, f"generated/nodes/{name}/xray-config.json")
@@ -119,18 +158,24 @@ for index, node in enumerate(nodes):
     test_mode = "true" if node.get("testMode") else "false"
     (generated / "nodes" / name / ".env").write_text(
         "\n".join([
-            f"XRAY_HOST=xray-{name}",
+            "XRAY_HOST=xray",
             "XRAY_PORT=10085",
+            "XRAY_INBOUND_TAG=vless-xdns",
             f"NODE_TOKEN={token}",
             f"TEST_MODE={test_mode}",
             "",
         ])
     )
-    rendered.append({"name": name, "domain": domain, "path": xhttp_path})
+    rendered.append({
+        "name": name,
+        "domain": domain,
+        "tunnel": tunnel,
+        "control": control_port,
+    })
 
-first = rendered[0]["name"]
-email = str(settings.get("certbotEmail") or "info@tunnelrover.com")
-swap = str(settings.get("swapSize") or "2G")
+node = rendered[0]
+email = str(nodes[0].get("certbotEmail") or "info@tunnelrover.com")
+swap = str(nodes[0].get("swapSize") or "2G")
 
 def q(value):
     return "'" + str(value).replace("'", "'\\''") + "'"
@@ -139,28 +184,27 @@ def q(value):
     "\n".join([
         f"CERTBOT_EMAIL={q(email)}",
         f"SWAP_SIZE={q(swap)}",
-        f"STACK_NAME={q(first)}",
+        f"PROJECT_SLUG={q(slug)}",
+        f"CONTROL_PORT={q(node['control'])}",
         "",
     ])
 )
-(generated / "domains.txt").write_text("".join(f"{node['domain']}\n" for node in rendered))
-(generated / "summary.txt").write_text("".join(f"{node['domain']} {node['path']}\n" for node in rendered))
+(generated / "domains.txt").write_text(node["domain"] + "\n")
+(generated / "summary.txt").write_text(
+    f"{node['domain']} {node['tunnel']} {node['control']}\n"
+)
 
-services = f"""version: "3.9"
-
-networks:
+services = f"""networks:
   instance-network:
-    name: instance-network
 
 services:
   nginx:
     image: nginx:alpine
-    container_name: nginx-proxy-{first}
+    container_name: nginx-{slug}
     restart: always
     ports:
       - "80:80"
-      - "443:443"
-      - "8080:8080"
+      - "{node['control']}:{node['control']}"
     volumes:
       - {root}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - {root}/generated/nginx/nodes:/etc/nginx/conf.d/nodes:ro
@@ -171,7 +215,7 @@ services:
 
   promtail:
     image: grafana/promtail:latest
-    container_name: promtail-{first}
+    container_name: promtail-{slug}
     restart: unless-stopped
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -183,21 +227,22 @@ services:
       - instance-network
 """
 
-for node in rendered:
-    name = node["name"]
-    services += f"""
-  xray-{name}:
-    image: teddysun/xray
-    container_name: xray-{name}
+name = node["name"]
+services += f"""
+  xray:
+    image: teddysun/xray:latest
+    container_name: xray-{slug}
     restart: unless-stopped
+    ports:
+      - "53:53/udp"
     volumes:
       - {root}/generated/nodes/{name}/xray-config.json:/etc/xray/config.json:ro
     command: xray run -config /etc/xray/config.json
     networks:
       - instance-network
 
-  nest-app-{name}:
-    container_name: nest-app-{name}
+  nest-app:
+    container_name: nest-app-{slug}
     restart: always
     build:
       context: {root}
@@ -207,7 +252,7 @@ for node in rendered:
     networks:
       - instance-network
     depends_on:
-      - xray-{name}
+      - xray
 """
 
 (generated / "docker-compose.yaml").write_text(services)
@@ -247,7 +292,19 @@ ensure_swap() {
 }
 
 compose() {
-  docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" "$@"
+  docker compose \
+    --project-name "$PROJECT_SLUG" \
+    --project-directory "$SCRIPT_DIR" \
+    -f "$SCRIPT_DIR/$GENERATED_DIR/docker-compose.yaml" \
+    "$@"
+}
+
+ensure_dns_port() {
+  if command -v ss >/dev/null 2>&1 && ss -lunH 'sport = :53' | grep -q .; then
+    echo "UDP 53 is already in use. XDNS must bind it itself; free the port and run again." >&2
+    ss -lunp 'sport = :53' >&2 || true
+    exit 1
+  fi
 }
 
 domain_in_cert() {
@@ -331,6 +388,7 @@ issue_certs() {
 
 install_docker
 ensure_swap
+ensure_dns_port
 issue_certs
 
 for required in nginx.conf index.html promtail-config.yaml; do
@@ -343,8 +401,11 @@ done
 compose up -d --build
 
 echo
-echo "Done. Shared nginx routes by server_name:"
-while read -r domain path; do
-  echo "  https://$domain$path  → xray relay"
-  echo "  https://$domain:8080  → nest-app control API"
-done < "$GENERATED_DIR/summary.txt"
+echo "Done. XDNS middle node (project $PROJECT_SLUG):"
+read -r domain tunnel control < "$GENERATED_DIR/summary.txt"
+echo "  DNS tunnel name: $tunnel"
+echo "  Point its NS record at an A record of this server. UDP 53 is Xray."
+echo "  https://$domain:$control  → nest-app control API"
+echo
+echo "Remove only this folder:"
+echo "  sudo ./deploy.sh down"
